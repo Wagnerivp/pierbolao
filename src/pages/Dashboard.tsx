@@ -39,24 +39,29 @@ export default function Dashboard() {
     try {
       const res = await axios.get("/api/matches");
       if (res.data.success) {
-        const events = res.data.events;
+        const events = res.data.events || [];
         setMatches(events);
 
-        // Fetch lineups in background for all matches
-        events.forEach(async (m: Match) => {
-          try {
-            const lRes = await axios.get(`/api/lineups?matchId=${m.id}`);
-            if (lRes.data.success && lRes.data.lineups) {
-              setLineupsCache((prev) => ({ ...prev, [m.id]: lRes.data.lineups }));
+        // Fetch lineups sequentially in background for all matches to avoid rate limits
+        const fetchLineupsSequentially = async () => {
+          for (const m of events) {
+            try {
+              const lRes = await axios.get(`/api/lineups?matchId=${m.id}`);
+              if (lRes.data.success && lRes.data.lineups) {
+                setLineupsCache((prev) => ({ ...prev, [m.id]: lRes.data.lineups }));
+              }
+              // Wait 1 second before next request to respect rate limits
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            } catch (e) {
+              console.error("Lineup error:", e);
             }
-          } catch (e) {
-            console.error("Lineup error:", e);
           }
-        });
+        };
+        fetchLineupsSequentially();
 
         // Ensure matches exist in supabase
         // In a real app, an admin syncs this. For this demo, we can silently upsert them here just so foreign keys work.
-        const matchesToInsert = res.data.events.map((m: Match) => ({
+        const matchesToInsert = events.map((m: Match) => ({
           sofascore_match_id: m.id,
           time_casa: m.homeTeam.name,
           time_visitante: m.awayTeam.name,
@@ -68,6 +73,7 @@ export default function Dashboard() {
         // but let's assume the user has the db seeded or the schema allows inserts.
       }
     } catch (error) {
+      console.error("Erro ao buscar partidas:", error);
       toast.error("Erro ao carregar jogos.");
     } finally {
       setLoading(false);

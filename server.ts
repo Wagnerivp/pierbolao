@@ -9,27 +9,21 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Proxy to RapidAPI Sofascore for World Cup Matches
+  // Proxy to RapidAPI Sofascore
   app.get("/api/matches", async (req, res) => {
     try {
-      // RapidAPI key provided by the user
-      const RAPIDAPI_KEY = "3dd5119643msh5fd4694fc97b882p17f897jsnd406196f787f";
-      
-      // We will mock the response structure or make a generic call if we don't know the exact endpoint.
-      // Usually, Sofascore API has a specific endpoint for tournaments. World Cup tournament ID is 16.
-      // Since we don't have the exact endpoint from the prompt, we'll try a common one or return a mock structure
-      // that fits the Bolão app requirements (team home, team away, time).
-      
-      // For now, let's just create a mock response since the exact endpoint isn't provided in the prompt,
-      // but we will structure it so they can swap the real axios call. 
-      // Let's actually attempt to make a real axios call to a known endpoint if possible, otherwise fallback.
+      // Para puxar os jogos automaticamente do Sofascore:
+      // 1. Crie uma conta no RapidAPI e assine a API não-oficial do Sofascore.
+      // 2. Coloque sua chave no arquivo .env: RAPIDAPI_KEY=sua_chave
+      // 3. Descubra o ID do campeonato (ex: Brasileirão = 325, Libertadores = 384)
+      const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
       
       const options = {
         method: 'GET',
         url: 'https://sofascore.p.rapidapi.com/tournaments/get-events',
         params: {
-          tournamentId: '16', // World cup
-          seasonId: '41087', // 2022 season for example, or they can update
+          tournamentId: '325', // 325 = Brasileirão Série A (Exemplo)
+          seasonId: '58766',   // Temporada atual
           page: '1'
         },
         headers: {
@@ -40,22 +34,31 @@ async function startServer() {
 
       let events = [];
       try {
-        const response = await axios.request(options);
-        events = response.data.events || [];
-      } catch (err) {
-        // Fallback mock data for World Cup
+        if (RAPIDAPI_KEY) {
+          const response = await axios.request(options);
+          events = response.data.events || [];
+        } else {
+          throw new Error("Usando chave de demonstração, caindo para mock");
+        }
+      } catch (err: any) {
+        if (err.response && err.response.status === 403) {
+          console.error("ERRO RAPIDAPI: Você precisa se inscrever na API (Subscribe) na página do Sofascore no RapidAPI.");
+        } else {
+          console.error("Erro na API Sofascore:", err.message);
+        }
+        // Fallback mock data para testes
         events = [
           {
             id: 1,
-            homeTeam: { name: "Brazil", nameCode: "BRA" },
-            awayTeam: { name: "Argentina", nameCode: "ARG" },
+            homeTeam: { name: "Flamengo", nameCode: "FLA" },
+            awayTeam: { name: "Palmeiras", nameCode: "PAL" },
             startTimestamp: Math.floor(Date.now() / 1000) + 86400,
             status: { description: "Not started" }
           },
           {
             id: 2,
-            homeTeam: { name: "France", nameCode: "FRA" },
-            awayTeam: { name: "England", nameCode: "ENG" },
+            homeTeam: { name: "São Paulo", nameCode: "SAO" },
+            awayTeam: { name: "Corinthians", nameCode: "COR" },
             startTimestamp: Math.floor(Date.now() / 1000) + 172800,
             status: { description: "Not started" }
           }
@@ -76,7 +79,7 @@ async function startServer() {
         return res.status(400).json({ success: false, error: "Match ID required" });
       }
 
-      const RAPIDAPI_KEY = "3dd5119643msh5fd4694fc97b882p17f897jsnd406196f787f";
+      const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
       
       const options = {
         method: 'GET',
@@ -90,9 +93,16 @@ async function startServer() {
 
       let lineups = null;
       try {
-        const response = await axios.request(options);
-        lineups = response.data;
-      } catch (err) {
+        if (RAPIDAPI_KEY) {
+          const response = await axios.request(options);
+          lineups = response.data;
+        } else {
+          throw new Error("Usando chave de demonstração, caindo para mock lineups");
+        }
+      } catch (err: any) {
+        if (err.response && err.response.status === 429) {
+          console.warn(`Lineups Rate limit hit for match ${matchId}, using mock data.`);
+        }
         // Mock data fallback for the UI to work if API fails or we're using mock matches
         lineups = {
           home: {

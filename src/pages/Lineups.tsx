@@ -19,9 +19,12 @@ export default function Lineups() {
       const res = await fetch("/api/matches");
       const data = await res.json();
       if (data.success && data.events) {
-        setMatches(data.events);
+        setMatches(data.events || []);
+      } else {
+        setMatches([]);
       }
     } catch (err) {
+      console.error("Erro escalações:", err);
       toast.error("Erro ao carregar jogos");
     } finally {
       setLoadingMatches(false);
