@@ -28,6 +28,26 @@ export default function Login() {
       return toast.error("Nome é obrigatório para cadastro.");
     }
 
+    if (!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
+      setLoading(true);
+      setTimeout(() => {
+        setLoading(false);
+        const mockUser = {
+          id: 'mock-user-123',
+          nome: formData.nome || 'Usuário Teste',
+          telefone: formData.telefone,
+          pontos_totais: 150,
+          acertos_placar_exato: 5,
+          is_approved: true,
+          is_locked: false
+        };
+        toast.success(isRegistering ? "Cadastro realizado (Modo de Teste)" : `Bem-vindo, ${mockUser.nome}! (Modo de Teste)`);
+        login(mockUser);
+        navigate('/');
+      }, 1000);
+      return;
+    }
+
     setLoading(true);
 
     try {

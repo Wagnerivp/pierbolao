@@ -61,6 +61,11 @@ export default function Dashboard() {
   };
 
   const fetchUserPalpites = async () => {
+    if (!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
+        setPalpites({ 1: { home: '2', away: '1' } });
+        setSavedStatus({ 1: true });
+        return;
+    }
     try {
       const { data, error } = await supabase
         .from("palpites")
@@ -117,6 +122,14 @@ export default function Dashboard() {
     }
 
     setSaving(true);
+    if (!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
+        setTimeout(() => {
+            setSaving(false);
+            setSavedStatus(prev => ({ ...prev, [matchId]: true }));
+            toast.success('Palpite salvo! (Modo de Teste)');
+        }, 500);
+        return;
+    }
     try {
       // Upsert palpite (Requires RLS to allow update on own palpites)
       // Note: Supabase upsert on custom unique constraints can be tricky.
