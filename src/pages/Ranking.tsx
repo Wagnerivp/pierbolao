@@ -21,7 +21,7 @@ export default function Ranking() {
 
   const fetchRanking = async () => {
     try {
-      if (!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
+      if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_URL.startsWith('http') || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
          setUsers([
              { id: '1', nome: 'Ricardo Mendes', pontos_totais: 642, acertos_placar_exato: 22 },
              { id: '2', nome: 'Carla Souza', pontos_totais: 598, acertos_placar_exato: 19 },

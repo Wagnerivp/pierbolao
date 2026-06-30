@@ -23,9 +23,10 @@ export default function Dashboard() {
 
   // Store palpite: { matchId: { home: number, away: number } }
   const [palpites, setPalpites] = useState<
-    Record<number, { home: string; away: string }>
+    Record<number, { home: string; away: string; primeiro_gol_autor?: string; primeiro_cartao_vermelho?: string }>
   >({});
   const [savedStatus, setSavedStatus] = useState<Record<number, boolean>>({});
+  const [lineupsCache, setLineupsCache] = useState<Record<number, any>>({});
 
   useEffect(() => {
     fetchMatches();
@@ -38,7 +39,20 @@ export default function Dashboard() {
     try {
       const res = await axios.get("/api/matches");
       if (res.data.success) {
-        setMatches(res.data.events);
+        const events = res.data.events;
+        setMatches(events);
+
+        // Fetch lineups in background for all matches
+        events.forEach(async (m: Match) => {
+          try {
+            const lRes = await axios.get(`/api/lineups?matchId=${m.id}`);
+            if (lRes.data.success && lRes.data.lineups) {
+              setLineupsCache((prev) => ({ ...prev, [m.id]: lRes.data.lineups }));
+            }
+          } catch (e) {
+            console.error("Lineup error:", e);
+          }
+        });
 
         // Ensure matches exist in supabase
         // In a real app, an admin syncs this. For this demo, we can silently upsert them here just so foreign keys work.
@@ -61,7 +75,7 @@ export default function Dashboard() {
   };
 
   const fetchUserPalpites = async () => {
-    if (!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
+    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_URL.startsWith('http') || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
         setPalpites({ 1: { home: '2', away: '1' } });
         setSavedStatus({ 1: true });
         return;
@@ -91,17 +105,17 @@ export default function Dashboard() {
 
   const handlePalpiteChange = (
     matchId: number,
-    team: "home" | "away",
+    field: "home" | "away" | "primeiro_gol_autor" | "primeiro_cartao_vermelho",
     value: string,
   ) => {
-    // Only allow numbers
-    if (value !== "" && !/^\d+$/.test(value)) return;
+    // Only allow numbers for score fields
+    if ((field === "home" || field === "away") && value !== "" && !/^\d+$/.test(value)) return;
 
     setPalpites((prev) => ({
       ...prev,
       [matchId]: {
         ...prev[matchId],
-        [team]: value,
+        [field]: value,
       },
     }));
     setSavedStatus((prev) => ({ ...prev, [matchId]: false }));
@@ -122,7 +136,7 @@ export default function Dashboard() {
     }
 
     setSaving(true);
-    if (!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
+    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_URL.startsWith('http') || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
         setTimeout(() => {
             setSaving(false);
             setSavedStatus(prev => ({ ...prev, [matchId]: true }));
@@ -295,7 +309,79 @@ export default function Dashboard() {
               </div>
 
               {!hasStarted && (
-                <div className="px-6 pb-6 pt-4">
+                <div className="px-6 py-3 border-t border-zinc-800/50 bg-zinc-900/30 space-y-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                      1º Autor do Gol (Extra)
+                    </label>
+                    <select
+                      disabled={hasStarted || saving || !lineupsCache[match.id]}
+                      value={currentPalpite.primeiro_gol_autor || ""}
+                      onChange={(e) => handlePalpiteChange(match.id, "primeiro_gol_autor", e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
+                    >
+                      <option value="">
+                        {!lineupsCache[match.id] ? "Aguardando escalação oficial..." : "Selecione um jogador..."}
+                      </option>
+                      {lineupsCache[match.id] && (
+                        <>
+                          <optgroup label={match.homeTeam.name}>
+                            {lineupsCache[match.id].home?.players?.map((p: any) => (
+                              <option key={`home-${p.player.id}`} value={p.player.name}>
+                                {p.player.name} {p.substitute ? '(Reserva)' : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label={match.awayTeam.name}>
+                            {lineupsCache[match.id].away?.players?.map((p: any) => (
+                              <option key={`away-${p.player.id}`} value={p.player.name}>
+                                {p.player.name} {p.substitute ? '(Reserva)' : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                      1º Cartão Vermelho (Extra)
+                    </label>
+                    <select
+                      disabled={hasStarted || saving || !lineupsCache[match.id]}
+                      value={currentPalpite.primeiro_cartao_vermelho || ""}
+                      onChange={(e) => handlePalpiteChange(match.id, "primeiro_cartao_vermelho", e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
+                    >
+                      <option value="">
+                        {!lineupsCache[match.id] ? "Aguardando escalação oficial..." : "Nenhum / Selecione um jogador..."}
+                      </option>
+                      {lineupsCache[match.id] && (
+                        <>
+                          <optgroup label={match.homeTeam.name}>
+                            {lineupsCache[match.id].home?.players?.map((p: any) => (
+                              <option key={`home-${p.player.id}`} value={p.player.name}>
+                                {p.player.name} {p.substitute ? '(Reserva)' : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label={match.awayTeam.name}>
+                            {lineupsCache[match.id].away?.players?.map((p: any) => (
+                              <option key={`away-${p.player.id}`} value={p.player.name}>
+                                {p.player.name} {p.substitute ? '(Reserva)' : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {!hasStarted && (
+                <div className="px-6 pb-6 pt-2">
                   <button
                     onClick={() => savePalpite(match.id)}
                     disabled={

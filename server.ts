@@ -70,6 +70,64 @@ async function startServer() {
     }
   });
 
+  app.get("/api/lineups", async (req, res) => {
+    try {
+      const { matchId } = req.query;
+      if (!matchId) {
+        return res.status(400).json({ success: false, error: "Match ID required" });
+      }
+
+      const RAPIDAPI_KEY = "3dd5119643msh5fd4694fc97b882p17f897jsnd406196f787f";
+      
+      const options = {
+        method: 'GET',
+        url: 'https://sofascore.p.rapidapi.com/matches/get-lineups',
+        params: { matchId },
+        headers: {
+          'X-RapidAPI-Key': RAPIDAPI_KEY,
+          'X-RapidAPI-Host': 'sofascore.p.rapidapi.com'
+        }
+      };
+
+      let lineups = null;
+      try {
+        const response = await axios.request(options);
+        lineups = response.data;
+      } catch (err) {
+        console.error("Error fetching lineups from RapidAPI:", err?.message);
+        
+        // Mock data fallback for the UI to work if API fails or we're using mock matches
+        lineups = {
+          home: {
+            players: [
+              { player: { id: 101, name: "Neymar Jr" }, substitute: false },
+              { player: { id: 102, name: "Vinícius Jr" }, substitute: false },
+              { player: { id: 103, name: "Alisson" }, substitute: false },
+              { player: { id: 104, name: "Richarlison" }, substitute: true },
+              { player: { id: 105, name: "Antony" }, substitute: true },
+            ],
+            manager: { name: "Dorival Júnior" }
+          },
+          away: {
+            players: [
+              { player: { id: 201, name: "Lionel Messi" }, substitute: false },
+              { player: { id: 202, name: "Angel Di Maria" }, substitute: false },
+              { player: { id: 203, name: "Emi Martinez" }, substitute: false },
+              { player: { id: 204, name: "Paulo Dybala" }, substitute: true },
+              { player: { id: 205, name: "Julian Alvarez" }, substitute: true },
+            ],
+            manager: { name: "Lionel Scaloni" }
+          }
+        };
+      }
+
+      res.json({ success: true, lineups });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, error: "Failed to fetch lineups" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

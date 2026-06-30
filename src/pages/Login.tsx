@@ -28,7 +28,10 @@ export default function Login() {
       return toast.error("Nome é obrigatório para cadastro.");
     }
 
-    if (!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const isMockMode = !supabaseUrl || !supabaseUrl.startsWith('http') || supabaseUrl.includes('placeholder') || supabaseUrl.includes('YOUR_');
+
+    if (isMockMode) {
       setLoading(true);
       setTimeout(() => {
         setLoading(false);
@@ -109,9 +112,32 @@ export default function Login() {
         navigate("/");
       }
     } catch (error: any) {
-      toast.error(error.message || "Ocorreu um erro.");
-    } finally {
-      setLoading(false);
+      const isConnectionError = error.message?.includes('Failed to fetch') || 
+                                error.message?.includes('Invalid path') || 
+                                error.message?.includes('URL') ||
+                                error.message?.includes('fetch') ||
+                                error.message?.includes('network');
+
+      if (isConnectionError || !import.meta.env.VITE_SUPABASE_URL?.startsWith('http')) {
+        toast.error('Modo offline/teste ativado (sem conexão com banco de dados).');
+        setTimeout(() => {
+          setLoading(false);
+          const mockUser = {
+            id: 'mock-user-123',
+            nome: formData.nome || 'Usuário Teste',
+            telefone: formData.telefone,
+            pontos_totais: 150,
+            acertos_placar_exato: 5,
+            is_approved: true,
+            is_locked: false
+          };
+          login(mockUser);
+          navigate('/');
+        }, 1000);
+      } else {
+        toast.error(error.message || "Ocorreu um erro.");
+        setLoading(false);
+      }
     }
   };
 
