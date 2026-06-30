@@ -15,8 +15,8 @@ export default function Layout() {
           <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.3)]">
             <Trophy className="w-6 h-6 text-zinc-950" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-white">
-            COPA<span className="text-emerald-500">PRO</span>
+          <h1 className="text-xl font-bold tracking-tight text-yellow-400 animate-pulse drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]">
+            PIER DO COSTA
           </h1>
         </div>
         <div className="flex items-center gap-3">

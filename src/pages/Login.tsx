@@ -158,8 +158,8 @@ export default function Login() {
             <Trophy className="w-8 h-8 text-zinc-950" />
           </div>
 
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            COPA<span className="text-emerald-500">PRO</span>
+          <h1 className="text-2xl font-bold tracking-tight text-yellow-400 animate-pulse drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]">
+            PIER DO COSTA
           </h1>
           <p className="text-zinc-500 text-sm mt-1">
             O seu bolão da Copa do Mundo
