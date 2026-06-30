@@ -1,0 +1,6 @@
+{
+  "name": "Bolão Copa do Mundo",
+  "description": "Aplicativo de bolão esportivo para a Copa do Mundo com ranking e palpites",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
