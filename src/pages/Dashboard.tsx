@@ -5,7 +5,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "react-hot-toast";
 import { Check, ShieldAlert } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "../lib/supabase";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 interface Match {
   id: number;
@@ -74,8 +74,8 @@ export default function Dashboard() {
     }
   };
 
-  const fetchUserPalpites = async () => {
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_URL.startsWith('http') || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
+    const fetchUserPalpites = async () => {
+    if (!isSupabaseConfigured()) {
         setPalpites({ 1: { home: '2', away: '1' } });
         setSavedStatus({ 1: true });
         return;
@@ -83,17 +83,20 @@ export default function Dashboard() {
     try {
       const { data, error } = await supabase
         .from("palpites")
-        .select("partida_id, dados_palpites")
-        .eq("usuario_id", user?.id);
+        .select("match_id, home, away, primeiro_gol_autor, primeiro_cartao_vermelho")
+        .eq("user_id", user?.id);
 
       if (data) {
-        const loaded: Record<number, { home: string; away: string }> = {};
+        const loaded: Record<number, { home: string; away: string; primeiro_gol_autor?: string; primeiro_cartao_vermelho?: string }> = {};
         const statuses: Record<number, boolean> = {};
         data.forEach((p) => {
-          // p.partida_id here is our internal serial, but we might have mapped it.
-          // For simplicity, let's assume partida_id is sofascore_match_id
-          loaded[p.partida_id] = p.dados_palpites;
-          statuses[p.partida_id] = true;
+          loaded[p.match_id] = {
+            home: String(p.home),
+            away: String(p.away),
+            primeiro_gol_autor: p.primeiro_gol_autor,
+            primeiro_cartao_vermelho: p.primeiro_cartao_vermelho
+          };
+          statuses[p.match_id] = true;
         });
         setPalpites(loaded);
         setSavedStatus(statuses);
@@ -145,58 +148,37 @@ export default function Dashboard() {
         return;
     }
     try {
-      // Upsert palpite (Requires RLS to allow update on own palpites)
-      // Note: Supabase upsert on custom unique constraints can be tricky.
-      // We will try insert, if error, we update.
+      // Upsert palpite
       const { data: existing } = await supabase
         .from("palpites")
         .select("id")
-        .eq("usuario_id", user.id)
-        .eq("partida_id", matchId)
+        .eq("user_id", user.id)
+        .eq("match_id", matchId)
         .single();
 
       if (existing) {
-        await supabase
+        const { error } = await supabase
           .from("palpites")
           .update({
-            dados_palpites: palpite,
-            updated_at: new Date().toISOString(),
+            home: parseInt(palpite.home, 10),
+            away: parseInt(palpite.away, 10),
+            primeiro_gol_autor: palpite.primeiro_gol_autor || null,
+            primeiro_cartao_vermelho: palpite.primeiro_cartao_vermelho || null,
+            updated_at: new Date().toISOString()
           })
           .eq("id", existing.id);
+        if (error) throw error;
       } else {
-        // Since we are referencing `partidas_id`, the match MUST exist in `partidas`.
-        // If it doesn't, we might get a FK error.
-
-        // Let's ensure match exists first for demo sake
-        const match = matches.find((m) => m.id === matchId);
-        if (match) {
-          try {
-            await supabase
-              .from("partidas")
-              .insert([
-                {
-                  id: match.id, // Force ID to match RapidAPI for simplicity in this demo
-                  sofascore_match_id: match.id,
-                  time_casa: match.homeTeam.name,
-                  time_visitante: match.awayTeam.name,
-                  horario_inicio: new Date(
-                    match.startTimestamp * 1000,
-                  ).toISOString(),
-                },
-              ])
-              .select()
-              .single();
-          } catch (e) {
-            // Ignore duplicate insert errors
-          }
-        }
-
-        const { error } = await supabase.from("palpites").insert({
-          usuario_id: user.id,
-          partida_id: matchId, // Using rapidapi id as internal id
-          dados_palpites: palpite,
-        });
-
+        const { error } = await supabase
+          .from("palpites")
+          .insert({
+            user_id: user.id,
+            match_id: matchId,
+            home: parseInt(palpite.home, 10),
+            away: parseInt(palpite.away, 10),
+            primeiro_gol_autor: palpite.primeiro_gol_autor || null,
+            primeiro_cartao_vermelho: palpite.primeiro_cartao_vermelho || null
+          });
         if (error) throw error;
       }
 

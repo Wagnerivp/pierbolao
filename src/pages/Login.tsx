@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { Trophy, LogIn, UserPlus } from "lucide-react";
-import { supabase } from "../lib/supabase";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function Login() {
@@ -28,10 +28,7 @@ export default function Login() {
       return toast.error("Nome é obrigatório para cadastro.");
     }
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    const isMockMode = !supabaseUrl || !supabaseUrl.startsWith('http') || supabaseUrl.includes('placeholder') || supabaseUrl.includes('YOUR_');
-
-    if (isMockMode) {
+    if (!isSupabaseConfigured()) {
       setLoading(true);
       setTimeout(() => {
         setLoading(false);
@@ -77,7 +74,7 @@ export default function Login() {
             {
               nome: formData.nome,
               telefone: formData.telefone,
-              pin_hash: pinHash,
+              pin: pinHash,
               is_approved: false, // Needs admin approval conceptually, but we'll let them in for demo
             },
           ])
@@ -96,7 +93,7 @@ export default function Login() {
           .from("usuarios")
           .select("*")
           .eq("telefone", formData.telefone)
-          .eq("pin_hash", pinHash)
+          .eq("pin", pinHash)
           .single();
 
         if (error || !data) {
