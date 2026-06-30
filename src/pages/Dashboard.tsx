@@ -58,23 +58,10 @@ export default function Dashboard() {
           }
         };
         fetchLineupsSequentially();
-
-        // Ensure matches exist in supabase
-        // In a real app, an admin syncs this. For this demo, we can silently upsert them here just so foreign keys work.
-        const matchesToInsert = events.map((m: Match) => ({
-          sofascore_match_id: m.id,
-          time_casa: m.homeTeam.name,
-          time_visitante: m.awayTeam.name,
-          horario_inicio: new Date(m.startTimestamp * 1000).toISOString(),
-          status: m.status.description,
-        }));
-
-        // We'll skip the actual insert here because without admin rights or an RPC it might fail RLS,
-        // but let's assume the user has the db seeded or the schema allows inserts.
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao buscar partidas:", error);
-      toast.error("Erro ao carregar jogos.");
+      toast.error(`Erro: ${error?.message || "ao carregar jogos"}`);
     } finally {
       setLoading(false);
     }

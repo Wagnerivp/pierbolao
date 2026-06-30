@@ -23,9 +23,9 @@ export default function Lineups() {
       } else {
         setMatches([]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erro escalações:", err);
-      toast.error("Erro ao carregar jogos");
+      toast.error(`Erro: ${err?.message || "ao carregar jogos"}`);
     } finally {
       setLoadingMatches(false);
     }
