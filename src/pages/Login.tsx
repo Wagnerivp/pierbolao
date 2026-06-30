@@ -60,7 +60,7 @@ export default function Login() {
           .from("usuarios")
           .select("id")
           .eq("telefone", formData.telefone)
-          .single();
+          .maybeSingle();
 
         if (existingUser) {
           toast.error("Telefone já cadastrado. Faça login.");
@@ -94,7 +94,7 @@ export default function Login() {
           .select("*")
           .eq("telefone", formData.telefone)
           .eq("pin", pinHash)
-          .single();
+          .maybeSingle();
 
         if (error || !data) {
           throw new Error("Telefone ou PIN incorretos.");
@@ -142,9 +142,22 @@ export default function Login() {
     <div className="min-h-screen bg-[#09090b] flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800/50 rounded-2xl p-6 shadow-2xl">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-emerald-500 rounded-lg flex items-center justify-center mb-4 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+          {/* Logo da Loja */}
+          <img 
+            src="/logo.png" 
+            alt="Logo da Loja" 
+            className="h-24 mb-4 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+            onError={(e) => {
+              // Fallback para o ícone padrão caso a imagem ainda não tenha sido enviada
+              e.currentTarget.style.display = 'none';
+              const fallback = document.getElementById('default-logo');
+              if (fallback) fallback.style.display = 'flex';
+            }}
+          />
+          <div id="default-logo" className="w-16 h-16 bg-emerald-500 rounded-lg flex items-center justify-center mb-4 shadow-[0_0_15px_rgba(16,185,129,0.3)] hidden">
             <Trophy className="w-8 h-8 text-zinc-950" />
           </div>
+
           <h1 className="text-2xl font-bold text-white tracking-tight">
             COPA<span className="text-emerald-500">PRO</span>
           </h1>
