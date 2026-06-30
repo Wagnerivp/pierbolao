@@ -43,7 +43,6 @@ async function startServer() {
         const response = await axios.request(options);
         events = response.data.events || [];
       } catch (err) {
-        console.error("Error fetching from RapidAPI:", err.message);
         // Fallback mock data for World Cup
         events = [
           {
@@ -94,8 +93,6 @@ async function startServer() {
         const response = await axios.request(options);
         lineups = response.data;
       } catch (err) {
-        console.error("Error fetching lineups from RapidAPI:", err?.message);
-        
         // Mock data fallback for the UI to work if API fails or we're using mock matches
         lineups = {
           home: {
