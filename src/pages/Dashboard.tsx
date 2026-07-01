@@ -313,7 +313,7 @@ export default function Dashboard() {
       const currentJogadoresGols = matchPalpite.jogadores_gols || {};
 
       const newJogadoresGols = { ...currentJogadoresGols };
-      if (value === "" || value === "0") {
+      if (value === "") {
         delete newJogadoresGols[playerName]; // Remove if empty or 0 to save space
       } else {
         newJogadoresGols[playerName] = value;
@@ -964,7 +964,7 @@ export default function Dashboard() {
                             </p>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[350px] overflow-y-auto pr-2 hide-scrollbar">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-3">
                                <h4 className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest mb-3 border-b border-zinc-800 pb-2 flex items-center gap-2">
                                  {lineupsCache[match.id].homeTeam || match.time_casa}
@@ -974,7 +974,7 @@ export default function Dashboard() {
                                  return (
                                    <div key={`home-${idx}`} className="flex items-center justify-between bg-zinc-950 p-2.5 rounded-lg border border-zinc-800">
                                       <span className="text-[11px] text-zinc-300 font-medium truncate pr-2" title={playerName}>{playerName}</span>
-                                      <input type="number" min="0" disabled={isLocked || saving} value={goalsStr} onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)} className="w-14 bg-zinc-900 border border-zinc-800 rounded p-1 text-center text-[11px] text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-zinc-700" placeholder="Gols" />
+                                      <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={isLocked || saving} value={goalsStr} onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)} className="w-14 bg-zinc-900 border border-zinc-800 rounded p-1 text-center text-[11px] text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-zinc-700" placeholder="Gols" />
                                    </div>
                                  );
                                })}
@@ -991,7 +991,7 @@ export default function Dashboard() {
                                  return (
                                    <div key={`away-${idx}`} className="flex items-center justify-between bg-zinc-950 p-2.5 rounded-lg border border-zinc-800">
                                       <span className="text-[11px] text-zinc-300 font-medium truncate pr-2" title={playerName}>{playerName}</span>
-                                      <input type="number" min="0" disabled={isLocked || saving} value={goalsStr} onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)} className="w-14 bg-zinc-900 border border-zinc-800 rounded p-1 text-center text-[11px] text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-zinc-700" placeholder="Gols" />
+                                      <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={isLocked || saving} value={goalsStr} onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)} className="w-14 bg-zinc-900 border border-zinc-800 rounded p-1 text-center text-[11px] text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-zinc-700" placeholder="Gols" />
                                    </div>
                                  );
                                })}

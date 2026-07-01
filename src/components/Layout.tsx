@@ -1,10 +1,35 @@
+import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { Trophy, Calendar, LogOut, BookOpen } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
+
 
 export default function Layout() {
   const location = useLocation();
   const { logout, user } = useAuth();
+  const [userRank, setUserRank] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchRank = async () => {
+      if (!user || !isSupabaseConfigured()) return;
+      try {
+        const { data, error } = await supabase
+          .from("usuarios")
+          .select("id")
+          .order("pontos_totais", { ascending: false })
+          .order("acertos_placar_exato", { ascending: false });
+        
+        if (!error && data) {
+          const rank = data.findIndex((u) => u.id === user.id) + 1;
+          setUserRank(rank);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchRank();
+  }, [user]);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -21,10 +46,17 @@ export default function Layout() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex flex-col items-end">
-            <span className="text-sm font-bold">{user?.nome}</span>
-            <span className="text-xs text-zinc-500 font-medium">
-              {user?.pontos_totais} pts
-            </span>
+            <span className="text-lg font-black text-white capitalize">{user?.nome}</span>
+            <div className="flex items-center gap-2 mt-1">
+              {userRank !== null && (
+                <span className="text-[10px] font-bold bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded border border-amber-500/20">
+                  {userRank}º LUGAR
+                </span>
+              )}
+              <span className="text-xs text-emerald-400 font-bold">
+                {user?.pontos_totais} pts
+              </span>
+            </div>
           </div>
           <button
             onClick={logout}
