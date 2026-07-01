@@ -223,7 +223,7 @@ export default function Dashboard() {
           .update({
             home: parseInt(palpite.home, 10),
             away: parseInt(palpite.away, 10),
-            total_gols: palpite.total_gols !== "" ? parseInt(palpite.total_gols, 10) : null,
+            total_gols: palpite.total_gols ? parseInt(palpite.total_gols, 10) : null,
             ambos_marcam: palpite.ambos_marcam || null,
             primeiro_gol_time: palpite.primeiro_gol_time || null,
             cartoes_1t: palpite.cartoes_1t || null,
@@ -234,7 +234,7 @@ export default function Dashboard() {
             cartao_prorrogacao: palpite.cartao_prorrogacao || null,
             vencedor_penaltis: palpite.vencedor_penaltis || null,
             artilheiro_nome: palpite.artilheiro_nome || null,
-            artilheiro_gols: palpite.artilheiro_gols !== "" ? parseInt(palpite.artilheiro_gols, 10) : null,
+            artilheiro_gols: palpite.artilheiro_gols ? parseInt(palpite.artilheiro_gols, 10) : null,
             updated_at: new Date().toISOString()
           })
           .eq("id", existing.id);
@@ -247,7 +247,7 @@ export default function Dashboard() {
             match_id: matchId,
             home: parseInt(palpite.home, 10),
             away: parseInt(palpite.away, 10),
-            total_gols: palpite.total_gols !== "" ? parseInt(palpite.total_gols, 10) : null,
+            total_gols: palpite.total_gols ? parseInt(palpite.total_gols, 10) : null,
             ambos_marcam: palpite.ambos_marcam || null,
             primeiro_gol_time: palpite.primeiro_gol_time || null,
             cartoes_1t: palpite.cartoes_1t || null,
@@ -258,7 +258,7 @@ export default function Dashboard() {
             cartao_prorrogacao: palpite.cartao_prorrogacao || null,
             vencedor_penaltis: palpite.vencedor_penaltis || null,
             artilheiro_nome: palpite.artilheiro_nome || null,
-            artilheiro_gols: palpite.artilheiro_gols !== "" ? parseInt(palpite.artilheiro_gols, 10) : null
+            artilheiro_gols: palpite.artilheiro_gols ? parseInt(palpite.artilheiro_gols, 10) : null
           });
         if (error) throw error;
       }
