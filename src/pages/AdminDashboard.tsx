@@ -34,15 +34,23 @@ export default function AdminDashboard() {
 
   const approveUser = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from("usuarios")
-        .update({ is_approved: true })
-        .eq("id", id);
-      if (error) throw error;
-      toast.success("Usuário liberado com sucesso!");
-      fetchUsersToApprove();
-    } catch (err) {
-      toast.error("Erro ao liberar usuário.");
+      const res = await fetch("/api/admin/approve-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ user_id: id }),
+      });
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        toast.success(data.message || "Usuário liberado com sucesso!");
+        fetchUsersToApprove();
+      } else {
+        toast.error(data.error || "Erro desconhecido ao liberar usuário.");
+      }
+    } catch (err: any) {
+      toast.error(`Falha de rede ao liberar usuário: ${err.message}`);
     }
   };
 
@@ -51,13 +59,14 @@ export default function AdminDashboard() {
     try {
       const res = await fetch("/api/fetch-matches", { method: "POST" });
       const data = await res.json();
-      if (data.success) {
+      
+      if (res.ok && data.success) {
         toast.success(data.message || "Jogos sincronizados!");
       } else {
         toast.error(data.error || "Falha na sincronização");
       }
-    } catch (err) {
-      toast.error("Erro na comunicação com o servidor");
+    } catch (err: any) {
+      toast.error(`Falha de comunicação: ${err.message}`);
     } finally {
       setLoading(false);
     }

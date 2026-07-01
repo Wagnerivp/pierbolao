@@ -19,12 +19,17 @@ async function startServer() {
 
   app.post("/api/fetch-matches", async (req, res) => {
     try {
-      const RAPIDAPI_KEY = "3dd5119643msh5fd4694fc97b882p17f897jsnd406196f787f";
+      const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || "3dd5119643msh5fd4694fc97b882p17f897jsnd406196f787f";
       const date = new Date().toISOString().split('T')[0]; // Current date
+
+      if (!process.env.VITE_SUPABASE_URL || !(process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY)) {
+         console.error("VITE_SUPABASE_URL ou Chave do Supabase ausente nas variáveis de ambiente.");
+         return res.status(500).json({ success: false, error: "Credenciais do Supabase ausentes no servidor." });
+      }
 
       const options = {
         method: 'GET',
-        url: 'https://sofascore.p.rapidapi.com/matches/by-date',
+        url: 'https://sofascore.p.rapidapi.com/matches/by-date', // Solicitado pelo usuário
         params: { date },
         headers: {
           'X-RapidAPI-Key': RAPIDAPI_KEY,
@@ -32,6 +37,7 @@ async function startServer() {
         }
       };
 
+      console.log(`Buscando partidas do Sofascore na data ${date}...`);
       const response = await axios.request(options);
       let events = response.data.events || [];
 
@@ -39,6 +45,10 @@ async function startServer() {
       const validMatches = events.filter((m: any) => 
         m.tournament?.name === "World Cup" || m.tournament?.uniqueName === "World Cup"
       );
+
+      if (validMatches.length === 0) {
+        return res.json({ success: true, message: "Nenhum jogo da Copa do Mundo encontrado para hoje.", count: 0 });
+      }
 
       // Save to Supabase
       const matchesToInsert = validMatches.map((m: any) => ({
@@ -55,14 +65,54 @@ async function startServer() {
           .upsert(match, { onConflict: 'sofascore_match_id' });
           
         if (error) {
-          console.error("Error upserting match:", error);
+          console.error("Erro do Supabase ao inserir partida:", error.message);
+          return res.status(500).json({ success: false, error: `Falha ao salvar no banco (Supabase): ${error.message}` });
         }
       }
 
-      res.json({ success: true, message: "Matches synced successfully", count: matchesToInsert.length });
+      res.json({ success: true, message: "Jogos da Copa sincronizados com sucesso!", count: matchesToInsert.length });
     } catch (error: any) {
-      console.error("Sync error:", error.message);
-      res.status(500).json({ success: false, error: "Failed to sync matches" });
+      console.error("Erro completo na rota fetch-matches:", error.response?.data || error.message);
+      
+      let errorMsg = "Falha desconhecida na sincronização.";
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        errorMsg = "Chave da Sofascore (RapidAPI) inválida ou expirada.";
+      } else if (error.response?.data?.message) {
+        errorMsg = `Erro na API da Sofascore: ${error.response.data.message}`;
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        errorMsg = "Timeout: A Sofascore demorou muito para responder.";
+      }
+      
+      res.status(500).json({ success: false, error: errorMsg });
+    }
+  });
+
+  app.post("/api/admin/approve-user", async (req, res) => {
+    try {
+      const { user_id } = req.body;
+      if (!user_id) {
+        return res.status(400).json({ success: false, error: "ID do usuário não fornecido." });
+      }
+
+      if (!process.env.VITE_SUPABASE_URL || !(process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY)) {
+         console.error("VITE_SUPABASE_URL ou Chave do Supabase ausente.");
+         return res.status(500).json({ success: false, error: "Credenciais do Supabase ausentes no servidor." });
+      }
+
+      const { error } = await supabase
+        .from('usuarios')
+        .update({ is_approved: true })
+        .eq('id', user_id);
+
+      if (error) {
+        console.error("Erro no Supabase ao aprovar usuário:", error.message);
+        return res.status(500).json({ success: false, error: `Falha no banco de dados (Supabase): ${error.message}` });
+      }
+
+      res.json({ success: true, message: "Usuário liberado com sucesso!" });
+    } catch (error: any) {
+      console.error("Erro inesperado na rota approve-user:", error.message);
+      res.status(500).json({ success: false, error: "Falha interna no servidor ao liberar usuário." });
     }
   });
 
