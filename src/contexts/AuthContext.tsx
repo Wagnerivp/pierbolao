@@ -8,6 +8,8 @@ export interface User {
   acertos_placar_exato: number;
   is_approved: boolean;
   is_locked: boolean;
+  pago?: boolean;
+  comprovante_enviado?: boolean;
 }
 
 interface AuthContextType {
@@ -19,18 +21,17 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
+  const [user, setUser] = useState<User | null>(() => {
     const storedUser = localStorage.getItem("bolao_user");
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
+        return JSON.parse(storedUser);
       } catch (e) {
         localStorage.removeItem("bolao_user");
       }
     }
-  }, []);
+    return null;
+  });
 
   const login = (userData: User) => {
     setUser(userData);

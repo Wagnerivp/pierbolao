@@ -22,32 +22,73 @@ export default function Dashboard() {
 
   // Store palpite: { matchId: { home: number, away: number } }
   const [palpites, setPalpites] = useState<
-    Record<number, { 
-      home: string; 
-      away: string; 
-      total_gols?: string;
-      ambos_marcam?: string;
-      primeiro_gol_time?: string;
-      cartoes_1t?: string;
-      escanteios_1t?: string;
-      cartoes_2t?: string;
-      escanteios_2t?: string;
-      vencedor_prorrogacao?: string;
-      cartao_prorrogacao?: string;
-      vencedor_penaltis?: string;
-      jogadores_gols?: Record<string, string>;
-    }>
+    Record<
+      number,
+      {
+        home: string;
+        away: string;
+        total_gols?: string;
+        ambos_marcam?: string;
+        primeiro_gol_time?: string;
+        cartoes_1t?: string;
+        escanteios_1t?: string;
+        cartoes_2t?: string;
+        escanteios_2t?: string;
+        vencedor_prorrogacao?: string;
+        cartao_prorrogacao?: string;
+        vencedor_penaltis?: string;
+        jogadores_gols?: Record<string, string>;
+        pontos_obtidos?: number;
+      }
+    >
   >({});
   const [savedStatus, setSavedStatus] = useState<Record<number, boolean>>({});
   const [lineupsCache, setLineupsCache] = useState<Record<number, any>>({});
-  const [activeTabs, setActiveTabs] = useState<Record<number, 'geral' | 'tempo' | 'jogadores'>>({});
+  const [activeTabs, setActiveTabs] = useState<
+    Record<number, "geral" | "tempo" | "jogadores">
+  >({});
+  const [totalParticipants, setTotalParticipants] = useState<number>(0);
+  const [showPixModal, setShowPixModal] = useState(false);
 
   useEffect(() => {
     fetchMatches();
+    fetchTotalParticipants();
     if (user) {
       fetchUserPalpites();
     }
   }, [user]);
+
+  const fetchTotalParticipants = async () => {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { count } = await supabase
+        .from("usuarios")
+        .select("*", { count: "exact", head: true });
+      if (count !== null) setTotalParticipants(count);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handlePixSubmit = async () => {
+    if (!user) return;
+    try {
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase
+          .from("usuarios")
+          .update({ comprovante_enviado: true })
+          .eq("id", user.id);
+        
+        if (error) throw error;
+      }
+      toast.success("Sinalizado com sucesso!");
+      window.open("https://wa.me/5521975151937?text=Olá, acabei de pagar o bolão (R$ 10,00). Segue o comprovante.", "_blank");
+      setShowPixModal(false);
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Erro ao registrar envio de comprovante");
+    }
+  };
 
   const fetchMatches = async () => {
     try {
@@ -56,37 +97,44 @@ export default function Dashboard() {
         setLoading(false);
         return;
       }
-      
+
       const { data, error } = await supabase
-        .from('partidas')
-        .select('*')
-        .order('horario_inicio', { ascending: true });
-        
+        .from("partidas")
+        .select("*")
+        .order("horario_inicio", { ascending: true });
+
       if (error) {
         console.warn("Supabase fetch error, using fallback matches:", error);
         applyFallbackMatches();
         setLoading(false);
         return;
       }
-      
-      const formattedMatches = (data || []).map(p => ({
+
+      const formattedMatches = (data || []).map((p) => ({
         id: p.sofascore_match_id,
-        homeTeam: { name: p.time_casa, nameCode: p.time_casa.substring(0, 3).toUpperCase() },
-        awayTeam: { name: p.time_visitante, nameCode: p.time_visitante.substring(0, 3).toUpperCase() },
+        homeTeam: {
+          name: p.time_casa,
+          nameCode: p.time_casa.substring(0, 3).toUpperCase(),
+        },
+        awayTeam: {
+          name: p.time_visitante,
+          nameCode: p.time_visitante.substring(0, 3).toUpperCase(),
+        },
         startTimestamp: Math.floor(new Date(p.horario_inicio).getTime() / 1000),
-        status: { description: p.status || "Not started" }
+        status: { description: p.status || "Not started" },
       }));
-      
+
       if (formattedMatches.length === 0) {
         applyFallbackMatches();
       } else {
         setMatches(formattedMatches);
         fetchLineupsSequentially(formattedMatches);
       }
-
     } catch (error: any) {
       console.error("Erro ao buscar partidas:", error);
-      toast.error(`Erro ao carregar jogos: ${error?.message || "Falha de conexão"}. Usando mock...`);
+      toast.error(
+        `Erro ao carregar jogos: ${error?.message || "Falha de conexão"}. Usando mock...`,
+      );
       applyFallbackMatches();
     } finally {
       setLoading(false);
@@ -100,16 +148,34 @@ export default function Dashboard() {
         id: 1001,
         homeTeam: { name: "Inglaterra", nameCode: "ING" },
         awayTeam: { name: "RD Congo", nameCode: "RDC" },
-        startTimestamp: Math.floor(new Date(today.getFullYear(), today.getMonth(), today.getDate(), 20, 0, 0).getTime() / 1000),
-        status: { description: "Not started" }
+        startTimestamp: Math.floor(
+          new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate(),
+            20,
+            0,
+            0,
+          ).getTime() / 1000,
+        ),
+        status: { description: "Not started" },
       },
       {
         id: 1002,
         homeTeam: { name: "Bélgica", nameCode: "BEL" },
         awayTeam: { name: "Senegal", nameCode: "SEN" },
-        startTimestamp: Math.floor(new Date(today.getFullYear(), today.getMonth(), today.getDate(), 22, 0, 0).getTime() / 1000),
-        status: { description: "Not started" }
-      }
+        startTimestamp: Math.floor(
+          new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate(),
+            22,
+            0,
+            0,
+          ).getTime() / 1000,
+        ),
+        status: { description: "Not started" },
+      },
     ];
     setMatches(fallback);
     fetchLineupsSequentially(fallback);
@@ -121,8 +187,9 @@ export default function Dashboard() {
         const res = await fetch(`/api/fetch-lineups?match_id=${m.id}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.success && data.players && data.players.length > 0) {
-            setLineupsCache((prev) => ({ ...prev, [m.id]: data.players }));
+          if (data.success && (data.homePlayers || (data.players && data.players.length > 0))) {
+            const playersData = data.homePlayers ? data : { homePlayers: data.players || [], awayPlayers: [] };
+            setLineupsCache((prev) => ({ ...prev, [m.id]: playersData }));
           }
         }
       } catch (e) {
@@ -131,14 +198,32 @@ export default function Dashboard() {
     }
   };
 
+  const [livePoints, setLivePoints] = useState<number>(
+    user?.pontos_totais || 0,
+  );
+  const [userStatus, setUserStatus] = useState({ pago: user?.pago || false, comprovante_enviado: user?.comprovante_enviado || false });
+
   const fetchUserPalpites = async () => {
-    if (!isSupabaseConfigured()) {
+    if (!isSupabaseConfigured() || !user) {
       return;
     }
     try {
+      const { data: userData } = await supabase
+        .from("usuarios")
+        .select("pontos_totais, pago, comprovante_enviado")
+        .eq("id", user.id)
+        .single();
+
+      if (userData) {
+        setLivePoints(userData.pontos_totais);
+        setUserStatus({ pago: userData.pago, comprovante_enviado: userData.comprovante_enviado });
+      }
+
       const { data, error } = await supabase
         .from("palpites")
-        .select("match_id, home, away, total_gols, ambos_marcam, primeiro_gol_time, cartoes_1t, escanteios_1t, cartoes_2t, escanteios_2t, vencedor_prorrogacao, cartao_prorrogacao, vencedor_penaltis, jogadores_gols")
+        .select(
+          "match_id, home, away, total_gols, ambos_marcam, primeiro_gol_time, cartoes_1t, escanteios_1t, cartoes_2t, escanteios_2t, vencedor_prorrogacao, cartao_prorrogacao, vencedor_penaltis, jogadores_gols, pontos_obtidos",
+        )
         .eq("user_id", user?.id);
 
       if (data) {
@@ -158,7 +243,8 @@ export default function Dashboard() {
             vencedor_prorrogacao: p.vencedor_prorrogacao,
             cartao_prorrogacao: p.cartao_prorrogacao,
             vencedor_penaltis: p.vencedor_penaltis,
-            jogadores_gols: p.jogadores_gols || {}
+            jogadores_gols: p.jogadores_gols || {},
+            pontos_obtidos: p.pontos_obtidos,
           };
           statuses[p.match_id] = true;
         });
@@ -176,13 +262,22 @@ export default function Dashboard() {
     value: string,
   ) => {
     // Only allow numbers for score fields
-    if ((field === "home" || field === "away") && value !== "" && !/^\d+$/.test(value)) return;
+    if (
+      (field === "home" || field === "away") &&
+      value !== "" &&
+      !/^\d+$/.test(value)
+    )
+      return;
 
     setPalpites((prev) => {
-      const matchPalpite = prev[matchId] || { home: "", away: "", jogadores_gols: {} };
+      const matchPalpite = prev[matchId] || {
+        home: "",
+        away: "",
+        jogadores_gols: {},
+      };
       const newHome = field === "home" ? value : matchPalpite.home;
       const newAway = field === "away" ? value : matchPalpite.away;
-      
+
       let newTotalGols = matchPalpite.total_gols;
       if (newHome !== "" && newAway !== "") {
         newTotalGols = String(parseInt(newHome, 10) + parseInt(newAway, 10));
@@ -193,33 +288,43 @@ export default function Dashboard() {
         [matchId]: {
           ...matchPalpite,
           [field]: value,
-          ...(field === "home" || field === "away" ? { total_gols: newTotalGols } : {})
+          ...(field === "home" || field === "away"
+            ? { total_gols: newTotalGols }
+            : {}),
         },
       };
     });
     setSavedStatus((prev) => ({ ...prev, [matchId]: false }));
   };
 
-  const handlePlayerGoalChange = (matchId: number, playerName: string, value: string) => {
+  const handlePlayerGoalChange = (
+    matchId: number,
+    playerName: string,
+    value: string,
+  ) => {
     if (value !== "" && !/^\d+$/.test(value)) return;
-    
+
     setPalpites((prev) => {
-      const matchPalpite = prev[matchId] || { home: "", away: "", jogadores_gols: {} };
+      const matchPalpite = prev[matchId] || {
+        home: "",
+        away: "",
+        jogadores_gols: {},
+      };
       const currentJogadoresGols = matchPalpite.jogadores_gols || {};
-      
+
       const newJogadoresGols = { ...currentJogadoresGols };
       if (value === "" || value === "0") {
         delete newJogadoresGols[playerName]; // Remove if empty or 0 to save space
       } else {
         newJogadoresGols[playerName] = value;
       }
-      
+
       return {
         ...prev,
         [matchId]: {
           ...matchPalpite,
-          jogadores_gols: newJogadoresGols
-        }
+          jogadores_gols: newJogadoresGols,
+        },
       };
     });
     setSavedStatus((prev) => ({ ...prev, [matchId]: false }));
@@ -228,13 +333,15 @@ export default function Dashboard() {
   const savePalpite = async (matchId: number) => {
     if (!user) return;
 
-    const match = matches.find(m => m.id === matchId);
+    const match = matches.find((m) => m.id === matchId);
     if (match) {
       const matchDate = new Date(match.startTimestamp * 1000);
       const deadline = new Date(matchDate.getTime() - 60000);
       const now = new Date();
       if (now > deadline) {
-        return toast.error("Tempo esgotado para salvar palpites nesta partida.");
+        return toast.error(
+          "Tempo esgotado para salvar palpites nesta partida.",
+        );
       }
     }
 
@@ -250,13 +357,17 @@ export default function Dashboard() {
     }
 
     setSaving(true);
-    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_URL.startsWith('http') || import.meta.env.VITE_SUPABASE_URL.includes('placeholder')) {
-        setTimeout(() => {
-            setSaving(false);
-            setSavedStatus(prev => ({ ...prev, [matchId]: true }));
-            toast.success('Palpite salvo! (Modo de Teste)');
-        }, 500);
-        return;
+    if (
+      !import.meta.env.VITE_SUPABASE_URL ||
+      !import.meta.env.VITE_SUPABASE_URL.startsWith("http") ||
+      import.meta.env.VITE_SUPABASE_URL.includes("placeholder")
+    ) {
+      setTimeout(() => {
+        setSaving(false);
+        setSavedStatus((prev) => ({ ...prev, [matchId]: true }));
+        toast.success("Palpite salvo! (Modo de Teste)");
+      }, 500);
+      return;
     }
     try {
       // Upsert palpite
@@ -273,7 +384,9 @@ export default function Dashboard() {
           .update({
             home: parseInt(palpite.home, 10),
             away: parseInt(palpite.away, 10),
-            total_gols: palpite.total_gols ? parseInt(palpite.total_gols, 10) : null,
+            total_gols: palpite.total_gols
+              ? parseInt(palpite.total_gols, 10)
+              : null,
             ambos_marcam: palpite.ambos_marcam || null,
             primeiro_gol_time: palpite.primeiro_gol_time || null,
             cartoes_1t: palpite.cartoes_1t || null,
@@ -284,35 +397,37 @@ export default function Dashboard() {
             cartao_prorrogacao: palpite.cartao_prorrogacao || null,
             vencedor_penaltis: palpite.vencedor_penaltis || null,
             jogadores_gols: palpite.jogadores_gols || {},
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
           .eq("id", existing.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from("palpites")
-          .insert({
-            user_id: user.id,
-            match_id: matchId,
-            home: parseInt(palpite.home, 10),
-            away: parseInt(palpite.away, 10),
-            total_gols: palpite.total_gols ? parseInt(palpite.total_gols, 10) : null,
-            ambos_marcam: palpite.ambos_marcam || null,
-            primeiro_gol_time: palpite.primeiro_gol_time || null,
-            cartoes_1t: palpite.cartoes_1t || null,
-            escanteios_1t: palpite.escanteios_1t || null,
-            cartoes_2t: palpite.cartoes_2t || null,
-            escanteios_2t: palpite.escanteios_2t || null,
-            vencedor_prorrogacao: palpite.vencedor_prorrogacao || null,
-            cartao_prorrogacao: palpite.cartao_prorrogacao || null,
-            vencedor_penaltis: palpite.vencedor_penaltis || null,
-            jogadores_gols: palpite.jogadores_gols || {}
-          });
+        const { error } = await supabase.from("palpites").insert({
+          user_id: user.id,
+          match_id: matchId,
+          home: parseInt(palpite.home, 10),
+          away: parseInt(palpite.away, 10),
+          total_gols: palpite.total_gols
+            ? parseInt(palpite.total_gols, 10)
+            : null,
+          ambos_marcam: palpite.ambos_marcam || null,
+          primeiro_gol_time: palpite.primeiro_gol_time || null,
+          cartoes_1t: palpite.cartoes_1t || null,
+          escanteios_1t: palpite.escanteios_1t || null,
+          cartoes_2t: palpite.cartoes_2t || null,
+          escanteios_2t: palpite.escanteios_2t || null,
+          vencedor_prorrogacao: palpite.vencedor_prorrogacao || null,
+          cartao_prorrogacao: palpite.cartao_prorrogacao || null,
+          vencedor_penaltis: palpite.vencedor_penaltis || null,
+          jogadores_gols: palpite.jogadores_gols || {},
+        });
         if (error) throw error;
       }
 
       setSavedStatus((prev) => ({ ...prev, [matchId]: true }));
-      toast.success("Palpite salvo com sucesso! Você está concorrendo a até 77 pontos neste jogo.");
+      toast.success(
+        "Palpite salvo com sucesso! Você está concorrendo a até 77 pontos neste jogo.",
+      );
     } catch (error: any) {
       toast.error("Erro ao salvar palpite.");
       console.error(error);
@@ -334,6 +449,114 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 pb-6">
+      <div className="bg-emerald-900/20 border border-emerald-500/20 rounded-2xl p-6 flex flex-col items-center justify-center text-center shadow-lg shadow-emerald-900/10">
+        <h2 className="text-sm font-bold text-emerald-500 uppercase tracking-widest mb-1">
+          Seus Pontos Ao Vivo
+        </h2>
+        <div className="text-5xl font-black text-white tracking-tight drop-shadow-sm">
+          {livePoints}
+        </div>
+        <p className="text-xs text-zinc-400 mt-2 font-medium">
+          Acompanhe sua pontuação atualizada
+        </p>
+      </div>
+
+      <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 space-y-4">
+        <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Participantes</p>
+            <p className="text-xl font-bold text-white mt-1">{totalParticipants}</p>
+          </div>
+          <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Acumulado</p>
+            <p className="text-xl font-bold text-emerald-400 mt-1">R$ {(totalParticipants * 10).toFixed(2).replace('.', ',')}</p>
+          </div>
+        </div>
+        
+        <div className="bg-zinc-950 rounded-xl border border-zinc-800/50 p-3">
+          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-center mb-2">Divisão dos Prêmios</p>
+          <div className="flex justify-between items-center text-sm px-2">
+            <div className="flex flex-col items-center">
+              <span className="text-yellow-400 font-bold">1º</span>
+              <span className="text-zinc-300">70%</span>
+            </div>
+            <div className="flex flex-col items-center border-l border-r border-zinc-800 px-4">
+              <span className="text-zinc-400 font-bold">2º</span>
+              <span className="text-zinc-300">20%</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-orange-400 font-bold">3º</span>
+              <span className="text-zinc-300">10%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {!userStatus.pago && (
+        <div className="bg-amber-900/20 border border-amber-500/20 rounded-2xl p-5 text-center space-y-3">
+          <h3 className="font-bold text-amber-500">Pagamento Pendente</h3>
+          <p className="text-sm text-zinc-400">
+            {userStatus.comprovante_enviado 
+              ? "Seu comprovante está em análise. Aguarde a liberação do administrador."
+              : "Você precisa efetuar o pagamento para liberar seus palpites."}
+          </p>
+          {!userStatus.comprovante_enviado && (
+            <button
+              onClick={() => setShowPixModal(true)}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold py-3 rounded-xl transition-colors shadow-lg shadow-amber-500/20"
+            >
+              EFETUAR PAGAMENTO (PIX)
+            </button>
+          )}
+        </div>
+      )}
+
+      {showPixModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-6 shadow-2xl">
+            <div className="text-center space-y-2">
+              <h3 className="text-xl font-black text-white uppercase tracking-tight">Pagamento PIX</h3>
+              <p className="text-sm text-zinc-400">
+                O valor da sua participação é <strong className="text-emerald-400">R$ 10,00</strong>.
+              </p>
+            </div>
+            
+            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 text-center space-y-3">
+              <p className="text-xs text-zinc-500 uppercase tracking-widest">Chave PIX (Celular)</p>
+              <p className="text-lg font-bold text-white">(21) 97515-1937</p>
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText("21975151937");
+                  toast.success("Chave PIX copiada!");
+                }}
+                className="mx-auto flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Copiar Chave PIX
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-500 text-center">
+              Faça o PIX para o número acima e envie o comprovante no WhatsApp para liberar seu acesso imediatamente.
+            </p>
+
+            <div className="space-y-3 pt-2">
+              <button
+                onClick={handlePixSubmit}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold py-3 rounded-xl transition-colors shadow-lg shadow-emerald-500/20"
+              >
+                Já fiz o PIX - Enviar Comprovante
+              </button>
+              <button
+                onClick={() => setShowPixModal(false)}
+                className="w-full bg-transparent hover:bg-zinc-800 text-zinc-400 font-medium py-3 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-start gap-3">
         <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
         <div>
@@ -365,11 +588,27 @@ export default function Dashboard() {
                     locale: ptBR,
                   })}
                 </span>
-                <span
-                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${isLocked ? "bg-red-500/10 text-red-500 border border-red-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`}
-                >
-                  {isLocked ? "Bloqueado" : "Aberto"}
-                </span>
+                <div className="flex items-center gap-2">
+                  {currentPalpite.pontos_obtidos !== undefined && (
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                        currentPalpite.pontos_obtidos > 0
+                          ? "text-yellow-400 bg-yellow-400/10 border border-yellow-400/20"
+                          : currentPalpite.pontos_obtidos < 0
+                            ? "text-red-400 bg-red-400/10 border border-red-400/20"
+                            : "text-zinc-400 bg-zinc-800 border border-zinc-700"
+                      }`}
+                    >
+                      {currentPalpite.pontos_obtidos > 0 ? "+" : ""}
+                      {currentPalpite.pontos_obtidos} pts
+                    </span>
+                  )}
+                  <span
+                    className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${isLocked ? "bg-red-500/10 text-red-500 border border-red-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`}
+                  >
+                    {isLocked ? "Bloqueado" : "Aberto"}
+                  </span>
+                </div>
               </div>
 
               <div className="px-6 py-2 flex items-center justify-between gap-4">
@@ -388,7 +627,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2 shrink-0">
                   <input
                     type="number"
-                    disabled={isLocked || saving}
+                    disabled={!userStatus.pago || isLocked || saving}
                     value={currentPalpite.home}
                     placeholder="0"
                     onChange={(e) =>
@@ -396,10 +635,12 @@ export default function Dashboard() {
                     }
                     className="w-12 h-12 bg-zinc-950 border border-zinc-800 rounded-lg text-center text-xl font-bold text-emerald-400 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
                   />
-                  <span className="text-zinc-600 font-bold font-mono tracking-widest">:</span>
+                  <span className="text-zinc-600 font-bold font-mono tracking-widest">
+                    :
+                  </span>
                   <input
                     type="number"
-                    disabled={isLocked || saving}
+                    disabled={!userStatus.pago || isLocked || saving}
                     value={currentPalpite.away}
                     placeholder="0"
                     onChange={(e) =>
@@ -425,27 +666,43 @@ export default function Dashboard() {
                 <>
                   <div className="px-6 py-3 bg-zinc-900/80 border-t border-zinc-800/50 flex space-x-2 overflow-x-auto hide-scrollbar">
                     <button
-                      onClick={() => setActiveTabs((prev) => ({ ...prev, [match.id]: 'geral' }))}
-                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${!activeTabs[match.id] || activeTabs[match.id] === 'geral' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+                      onClick={() =>
+                        setActiveTabs((prev) => ({
+                          ...prev,
+                          [match.id]: "geral",
+                        }))
+                      }
+                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${!activeTabs[match.id] || activeTabs[match.id] === "geral" ? "bg-emerald-500 text-zinc-950" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
                     >
                       Palpites Gerais
                     </button>
                     <button
-                      onClick={() => setActiveTabs((prev) => ({ ...prev, [match.id]: 'tempo' }))}
-                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${activeTabs[match.id] === 'tempo' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+                      onClick={() =>
+                        setActiveTabs((prev) => ({
+                          ...prev,
+                          [match.id]: "tempo",
+                        }))
+                      }
+                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${activeTabs[match.id] === "tempo" ? "bg-emerald-500 text-zinc-950" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
                     >
                       Tempo / Mata-Mata
                     </button>
                     <button
-                      onClick={() => setActiveTabs((prev) => ({ ...prev, [match.id]: 'jogadores' }))}
-                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${activeTabs[match.id] === 'jogadores' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+                      onClick={() =>
+                        setActiveTabs((prev) => ({
+                          ...prev,
+                          [match.id]: "jogadores",
+                        }))
+                      }
+                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${activeTabs[match.id] === "jogadores" ? "bg-emerald-500 text-zinc-950" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
                     >
                       Jogadores (Gols)
                     </button>
                   </div>
 
                   <div className="px-6 py-4 border-t border-zinc-800/50 bg-zinc-900/30 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(!activeTabs[match.id] || activeTabs[match.id] === 'geral') ? (
+                    {!activeTabs[match.id] ||
+                    activeTabs[match.id] === "geral" ? (
                       <>
                         <div>
                           <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
@@ -454,9 +711,15 @@ export default function Dashboard() {
                           <input
                             type="number"
                             min="0"
-                            disabled={saving}
+                            disabled={!userStatus.pago || saving}
                             value={currentPalpite.total_gols || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "total_gols", e.target.value)}
+                            onChange={(e) =>
+                              handlePalpiteChange(
+                                match.id,
+                                "total_gols",
+                                e.target.value,
+                              )
+                            }
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
                             placeholder="Ex: 3"
                           />
@@ -466,9 +729,15 @@ export default function Dashboard() {
                             Ambos Marcam (4 pts)
                           </label>
                           <select
-                            disabled={saving}
+                            disabled={!userStatus.pago || saving}
                             value={currentPalpite.ambos_marcam || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "ambos_marcam", e.target.value)}
+                            onChange={(e) =>
+                              handlePalpiteChange(
+                                match.id,
+                                "ambos_marcam",
+                                e.target.value,
+                              )
+                            }
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
                           >
                             <option value="">Selecione...</option>
@@ -481,29 +750,45 @@ export default function Dashboard() {
                             Quem faz o 1º Gol (4 pts)
                           </label>
                           <select
-                            disabled={saving}
+                            disabled={!userStatus.pago || saving}
                             value={currentPalpite.primeiro_gol_time || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "primeiro_gol_time", e.target.value)}
+                            onChange={(e) =>
+                              handlePalpiteChange(
+                                match.id,
+                                "primeiro_gol_time",
+                                e.target.value,
+                              )
+                            }
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
                           >
                             <option value="">Selecione...</option>
                             <option value="Casa">{match.homeTeam.name}</option>
-                            <option value="Visitante">{match.awayTeam.name}</option>
+                            <option value="Visitante">
+                              {match.awayTeam.name}
+                            </option>
                             <option value="Ninguém">Ninguém</option>
                           </select>
                         </div>
                       </>
-                    ) : activeTabs[match.id] === 'tempo' ? (
+                    ) : activeTabs[match.id] === "tempo" ? (
                       <>
-                        <div className="md:col-span-2 text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-2">1º Tempo</div>
+                        <div className="md:col-span-2 text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-2">
+                          1º Tempo
+                        </div>
                         <div>
                           <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
                             Cartões (2 pts)
                           </label>
                           <select
-                            disabled={saving}
+                            disabled={!userStatus.pago || saving}
                             value={currentPalpite.cartoes_1t || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "cartoes_1t", e.target.value)}
+                            onChange={(e) =>
+                              handlePalpiteChange(
+                                match.id,
+                                "cartoes_1t",
+                                e.target.value,
+                              )
+                            }
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
                           >
                             <option value="">Selecione...</option>
@@ -517,9 +802,15 @@ export default function Dashboard() {
                             Escanteios (2 pts)
                           </label>
                           <select
-                            disabled={saving}
+                            disabled={!userStatus.pago || saving}
                             value={currentPalpite.escanteios_1t || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "escanteios_1t", e.target.value)}
+                            onChange={(e) =>
+                              handlePalpiteChange(
+                                match.id,
+                                "escanteios_1t",
+                                e.target.value,
+                              )
+                            }
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
                           >
                             <option value="">Selecione...</option>
@@ -528,15 +819,23 @@ export default function Dashboard() {
                             <option value=">7">Mais de 7</option>
                           </select>
                         </div>
-                        <div className="md:col-span-2 text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-4">2º Tempo</div>
+                        <div className="md:col-span-2 text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-4">
+                          2º Tempo
+                        </div>
                         <div>
                           <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
                             Cartões (2 pts)
                           </label>
                           <select
-                            disabled={saving}
+                            disabled={!userStatus.pago || saving}
                             value={currentPalpite.cartoes_2t || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "cartoes_2t", e.target.value)}
+                            onChange={(e) =>
+                              handlePalpiteChange(
+                                match.id,
+                                "cartoes_2t",
+                                e.target.value,
+                              )
+                            }
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
                           >
                             <option value="">Selecione...</option>
@@ -550,9 +849,15 @@ export default function Dashboard() {
                             Escanteios (2 pts)
                           </label>
                           <select
-                            disabled={saving}
+                            disabled={!userStatus.pago || saving}
                             value={currentPalpite.escanteios_2t || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "escanteios_2t", e.target.value)}
+                            onChange={(e) =>
+                              handlePalpiteChange(
+                                match.id,
+                                "escanteios_2t",
+                                e.target.value,
+                              )
+                            }
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
                           >
                             <option value="">Selecione...</option>
@@ -561,21 +866,33 @@ export default function Dashboard() {
                             <option value=">7">Mais de 7</option>
                           </select>
                         </div>
-                        <div className="md:col-span-2 text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-4">Mata-Mata (Prorrogação/Pênaltis)</div>
+                        <div className="md:col-span-2 text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-4">
+                          Mata-Mata (Prorrogação/Pênaltis)
+                        </div>
                         <div className="md:col-span-2">
                           <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
                             Vencedor na Prorrogação (8 pts)
                           </label>
                           <select
-                            disabled={saving}
+                            disabled={!userStatus.pago || saving}
                             value={currentPalpite.vencedor_prorrogacao || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "vencedor_prorrogacao", e.target.value)}
+                            onChange={(e) =>
+                              handlePalpiteChange(
+                                match.id,
+                                "vencedor_prorrogacao",
+                                e.target.value,
+                              )
+                            }
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
                           >
                             <option value="">Selecione...</option>
                             <option value="Casa">{match.homeTeam.name}</option>
-                            <option value="Visitante">{match.awayTeam.name}</option>
-                            <option value="Ninguém">Não vai para prorrogação/Empate</option>
+                            <option value="Visitante">
+                              {match.awayTeam.name}
+                            </option>
+                            <option value="Ninguém">
+                              Não vai para prorrogação/Empate
+                            </option>
                           </select>
                         </div>
                         <div>
@@ -583,9 +900,15 @@ export default function Dashboard() {
                             Cartão Prorrogação (5 pts)
                           </label>
                           <select
-                            disabled={saving}
+                            disabled={!userStatus.pago || saving}
                             value={currentPalpite.cartao_prorrogacao || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "cartao_prorrogacao", e.target.value)}
+                            onChange={(e) =>
+                              handlePalpiteChange(
+                                match.id,
+                                "cartao_prorrogacao",
+                                e.target.value,
+                              )
+                            }
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
                           >
                             <option value="">Selecione...</option>
@@ -598,15 +921,25 @@ export default function Dashboard() {
                             Vencedor Pênaltis (8 pts)
                           </label>
                           <select
-                            disabled={saving}
+                            disabled={!userStatus.pago || saving}
                             value={currentPalpite.vencedor_penaltis || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "vencedor_penaltis", e.target.value)}
+                            onChange={(e) =>
+                              handlePalpiteChange(
+                                match.id,
+                                "vencedor_penaltis",
+                                e.target.value,
+                              )
+                            }
                             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
                           >
                             <option value="">Selecione...</option>
                             <option value="Casa">{match.homeTeam.name}</option>
-                            <option value="Visitante">{match.awayTeam.name}</option>
-                            <option value="Ninguém">Não vai para pênaltis</option>
+                            <option value="Visitante">
+                              {match.awayTeam.name}
+                            </option>
+                            <option value="Ninguém">
+                              Não vai para pênaltis
+                            </option>
                           </select>
                         </div>
                       </>
@@ -614,37 +947,59 @@ export default function Dashboard() {
                       <div className="md:col-span-2 space-y-4">
                         <div className="text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-2 flex justify-between items-center">
                           <span>Lista de Jogadores</span>
-                          <span className="text-zinc-500 text-[9px]">+10 pts acerto | -5 pts erro</span>
+                          <span className="text-zinc-500 text-[9px]">
+                            +10 pts acerto | -5 pts erro
+                          </span>
                         </div>
-                        
+
                         {!lineupsCache[match.id] ? (
                           <div className="text-center py-6 border border-dashed border-zinc-800 rounded-xl bg-zinc-950/50">
-                            <p className="text-zinc-400 text-sm">Aguardando escalação oficial...</p>
+                            <p className="text-zinc-400 text-sm">
+                              Aguardando escalação oficial...
+                            </p>
                             <p className="text-zinc-600 text-xs mt-2 max-w-[280px] mx-auto">
-                              Assim que os times divulgarem a escalação oficial (geralmente 1h antes do jogo), a lista de jogadores aparecerá aqui.
+                              Assim que os times divulgarem a escalação oficial
+                              (geralmente 1h antes do jogo), a lista de
+                              jogadores aparecerá aqui.
                             </p>
                           </div>
                         ) : (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 hide-scrollbar">
-                            {lineupsCache[match.id].map((playerName: string, idx: number) => {
-                              const goalsStr = currentPalpite.jogadores_gols?.[playerName] || "";
-                              return (
-                                <div key={`art-${idx}`} className="flex items-center justify-between bg-zinc-950 p-3 rounded-lg border border-zinc-800">
-                                  <span className="text-xs text-zinc-300 font-medium truncate pr-3" title={playerName}>
-                                    {playerName}
-                                  </span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    disabled={saving}
-                                    value={goalsStr}
-                                    onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)}
-                                    className="w-16 bg-zinc-900 border border-zinc-700 rounded-md p-1.5 text-center text-sm text-emerald-400 font-bold focus:outline-none focus:border-emerald-500 transition-colors placeholder:text-zinc-700"
-                                    placeholder="Gols"
-                                  />
-                                </div>
-                              );
-                            })}
+                            {lineupsCache[match.id].map(
+                              (playerName: string, idx: number) => {
+                                const goalsStr =
+                                  currentPalpite.jogadores_gols?.[playerName] ||
+                                  "";
+                                return (
+                                  <div
+                                    key={`art-${idx}`}
+                                    className="flex items-center justify-between bg-zinc-950 p-3 rounded-lg border border-zinc-800"
+                                  >
+                                    <span
+                                      className="text-xs text-zinc-300 font-medium truncate pr-3"
+                                      title={playerName}
+                                    >
+                                      {playerName}
+                                    </span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      disabled={!userStatus.pago || saving}
+                                      value={goalsStr}
+                                      onChange={(e) =>
+                                        handlePlayerGoalChange(
+                                          match.id,
+                                          playerName,
+                                          e.target.value,
+                                        )
+                                      }
+                                      className="w-16 bg-zinc-900 border border-zinc-700 rounded-md p-1.5 text-center text-sm text-emerald-400 font-bold focus:outline-none focus:border-emerald-500 transition-colors placeholder:text-zinc-700"
+                                      placeholder="Gols"
+                                    />
+                                  </div>
+                                );
+                              },
+                            )}
                           </div>
                         )}
                       </div>
@@ -654,7 +1009,7 @@ export default function Dashboard() {
                     <button
                       onClick={() => savePalpite(match.id)}
                       disabled={
-                        saving ||
+                        !userStatus.pago || saving ||
                         currentPalpite.home === "" ||
                         currentPalpite.away === ""
                       }
@@ -681,7 +1036,8 @@ export default function Dashboard() {
                     PALPITES ENCERRADOS - ACOMPANHE O PLACAR
                   </span>
                   <p className="text-zinc-500 text-[11px] text-center max-w-[250px]">
-                    Os palpites para este jogo foram bloqueados 1 minuto antes do início da partida.
+                    Os palpites para este jogo foram bloqueados 1 minuto antes
+                    do início da partida.
                   </p>
                 </div>
               )}

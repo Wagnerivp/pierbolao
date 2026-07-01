@@ -10,6 +10,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Ranking from "./pages/Ranking";
 import AdminDashboard from "./pages/AdminDashboard";
+import Rules from "./pages/Rules";
 import Layout from "./components/Layout";
 import type { ReactNode } from "react";
 
@@ -54,6 +55,7 @@ export default function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="ranking" element={<Ranking />} />
+              <Route path="regras" element={<Rules />} />
               <Route path="admin" element={<AdminDashboard />} />
             </Route>
           </Routes>

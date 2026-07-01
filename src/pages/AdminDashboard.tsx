@@ -6,7 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 
 export default function AdminDashboard() {
   const { user } = useAuth();
-  const [usersToApprove, setUsersToApprove] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Check if current user is Wagner (admin)
@@ -14,18 +14,18 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (isAdmin) {
-      fetchUsersToApprove();
+      fetchAllUsers();
     }
   }, [isAdmin]);
 
-  const fetchUsersToApprove = async () => {
+  const fetchAllUsers = async () => {
     try {
       const { data, error } = await supabase
         .from("usuarios")
         .select("*")
-        .eq("is_approved", false);
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      setUsersToApprove(data || []);
+      setAllUsers(data || []);
     } catch (err) {
       console.error(err);
       toast.error("Erro ao carregar usuários pendentes.");
@@ -45,7 +45,7 @@ export default function AdminDashboard() {
       
       if (res.ok && data.success) {
         toast.success(data.message || "Usuário liberado com sucesso!");
-        fetchUsersToApprove();
+        fetchAllUsers();
       } else {
         toast.error(data.error || "Erro desconhecido ao liberar usuário.");
       }
@@ -115,29 +115,35 @@ export default function AdminDashboard() {
       </div>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-lg">
-        <h3 className="font-bold text-lg text-white mb-4">Aprovação de PIX</h3>
+        <h3 className="font-bold text-lg text-white mb-4">Todos os Usuários</h3>
         <div className="space-y-3">
-          {usersToApprove.length === 0 ? (
+          {allUsers.length === 0 ? (
             <p className="text-zinc-500 text-sm text-center py-4 bg-zinc-950 rounded-lg">
-              Nenhum usuário aguardando aprovação.
+              Nenhum usuário cadastrado ainda.
             </p>
           ) : (
-            usersToApprove.map((u) => (
+            allUsers.map((u) => (
               <div
                 key={u.id}
                 className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-800 rounded-lg"
               >
                 <div>
-                  <p className="font-bold text-white">{u.nome}</p>
+                  <p className="font-bold text-white flex items-center gap-2">
+                    {u.nome}
+                    {u.pago && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-widest">Liberado</span>}
+                    {!u.pago && u.comprovante_enviado && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full uppercase tracking-widest">Avaliando</span>}
+                  </p>
                   <p className="text-xs text-zinc-500">{u.telefone}</p>
                 </div>
-                <button
-                  onClick={() => approveUser(u.id)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-sm font-bold hover:bg-emerald-500/30 transition-colors"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Liberar
-                </button>
+                {!u.pago && (
+                  <button
+                    onClick={() => approveUser(u.id)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-sm font-bold hover:bg-emerald-500/30 transition-colors"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Liberar
+                  </button>
+                )}
               </div>
             ))
           )}

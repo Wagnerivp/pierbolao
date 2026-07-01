@@ -1,3 +1,5 @@
+import { supabase } from "../../src/lib/supabase";
+
 import { createClient } from "@supabase/supabase-js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
@@ -24,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { error } = await supabase
       .from('usuarios')
-      .update({ is_approved: true })
+      .update({ is_approved: true, pago: true, comprovante_enviado: true })
       .eq('id', user_id);
 
     if (error) {

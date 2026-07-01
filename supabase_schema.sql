@@ -12,6 +12,8 @@ CREATE TABLE public.usuarios (
     acertos_placar_exato INTEGER DEFAULT 0,
     is_approved BOOLEAN DEFAULT true,
     is_locked BOOLEAN DEFAULT false,
+    pago BOOLEAN DEFAULT false,
+    comprovante_enviado BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
