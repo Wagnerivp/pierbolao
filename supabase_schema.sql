@@ -34,12 +34,105 @@ CREATE TABLE public.palpites (
     match_id INTEGER NOT NULL,
     home INTEGER NOT NULL,
     away INTEGER NOT NULL,
-    primeiro_gol_autor TEXT,
-    primeiro_cartao_vermelho TEXT,
+    total_gols INTEGER,
+    ambos_marcam TEXT,
+    primeiro_gol_time TEXT,
+    cartoes_1t TEXT,
+    escanteios_1t TEXT,
+    cartoes_2t TEXT,
+    escanteios_2t TEXT,
+    vencedor_prorrogacao TEXT,
+    cartao_prorrogacao TEXT,
+    vencedor_penaltis TEXT,
+    artilheiro_nome TEXT,
+    artilheiro_gols INTEGER,
+    pontos_obtidos INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(user_id, match_id) -- Garante que o usuário só tenha um palpite por jogo
 );
+
+-- Função para calcular e atualizar pontos (Pode ser chamada manualmente ou via trigger/API)
+CREATE OR REPLACE FUNCTION public.calcular_pontos_partida(
+    p_match_id INTEGER,
+    p_home_score INTEGER,
+    p_away_score INTEGER,
+    p_total_gols INTEGER,
+    p_ambos_marcam TEXT,
+    p_primeiro_gol_time TEXT,
+    p_cartoes_1t TEXT,
+    p_escanteios_1t TEXT,
+    p_cartoes_2t TEXT,
+    p_escanteios_2t TEXT,
+    p_vencedor_prorrogacao TEXT,
+    p_cartao_prorrogacao TEXT,
+    p_vencedor_penaltis TEXT,
+    p_artilheiro_nome TEXT,
+    p_artilheiro_gols INTEGER
+) RETURNS VOID AS $$
+DECLARE
+    palpite RECORD;
+    v_pontos INTEGER;
+BEGIN
+    FOR palpite IN SELECT * FROM public.palpites WHERE match_id = p_match_id LOOP
+        v_pontos := 0;
+
+        -- Placar Exato: 10 pontos
+        IF palpite.home = p_home_score AND palpite.away = p_away_score THEN
+            v_pontos := v_pontos + 10;
+        -- Vencedor da Partida: 5 pontos (Se acertou só quem venceu ou empate, sem ser placar exato)
+        ELSIF (palpite.home > palpite.away AND p_home_score > p_away_score) OR 
+              (palpite.home < palpite.away AND p_home_score < p_away_score) OR 
+              (palpite.home = palpite.away AND p_home_score = p_away_score) THEN
+            v_pontos := v_pontos + 5;
+        END IF;
+
+        -- Total de Gols exato: 5 pontos
+        IF palpite.total_gols = p_total_gols THEN
+            v_pontos := v_pontos + 5;
+        END IF;
+
+        -- Ambos Marcam (Sim/Não): 4 pontos
+        IF palpite.ambos_marcam = p_ambos_marcam THEN
+            v_pontos := v_pontos + 4;
+        END IF;
+
+        -- Quem faz o 1º Gol (Time Casa/Visitante/Ninguém): 4 pontos
+        IF palpite.primeiro_gol_time = p_primeiro_gol_time THEN
+            v_pontos := v_pontos + 4;
+        END IF;
+
+        -- Estatísticas 1º Tempo
+        IF palpite.cartoes_1t = p_cartoes_1t THEN v_pontos := v_pontos + 2; END IF;
+        IF palpite.escanteios_1t = p_escanteios_1t THEN v_pontos := v_pontos + 2; END IF;
+
+        -- Estatísticas 2º Tempo
+        IF palpite.cartoes_2t = p_cartoes_2t THEN v_pontos := v_pontos + 2; END IF;
+        IF palpite.escanteios_2t = p_escanteios_2t THEN v_pontos := v_pontos + 2; END IF;
+
+        -- Mata-Mata
+        IF palpite.vencedor_prorrogacao = p_vencedor_prorrogacao THEN v_pontos := v_pontos + 8; END IF;
+        IF palpite.cartao_prorrogacao = p_cartao_prorrogacao THEN v_pontos := v_pontos + 5; END IF;
+        IF palpite.vencedor_penaltis = p_vencedor_penaltis THEN v_pontos := v_pontos + 8; END IF;
+
+        -- Artilheiro Multi-Gols
+        IF palpite.artilheiro_nome = p_artilheiro_nome AND palpite.artilheiro_gols = p_artilheiro_gols THEN
+            IF p_artilheiro_gols = 1 THEN v_pontos := v_pontos + 5;
+            ELSIF p_artilheiro_gols = 2 THEN v_pontos := v_pontos + 15;
+            ELSIF p_artilheiro_gols >= 3 THEN v_pontos := v_pontos + 25;
+            END IF;
+        END IF;
+
+        -- Atualiza os pontos obtidos no palpite
+        UPDATE public.palpites SET pontos_obtidos = v_pontos WHERE id = palpite.id;
+
+        -- Atualiza a pontuação total do usuário
+        UPDATE public.usuarios SET pontos_totais = (
+            SELECT COALESCE(SUM(pontos_obtidos), 0) FROM public.palpites WHERE user_id = palpite.user_id
+        ) WHERE id = palpite.user_id;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
 
 -- 3. Configuração de Segurança (RLS - Row Level Security)
 -- Como o aplicativo utiliza autenticação customizada via Telefone + PIN no frontend

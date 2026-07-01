@@ -43,13 +43,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.json({ success: true, message: "Nenhum jogo da Copa do Mundo encontrado para hoje.", count: 0 });
     }
 
-    const matchesToInsert = validMatches.map((m: any) => ({
-      sofascore_match_id: m.id,
-      time_casa: m.homeTeam?.name,
-      time_visitante: m.awayTeam?.name,
-      horario_inicio: new Date(m.startTimestamp * 1000).toISOString(),
-      status: m.status?.description,
-    }));
+    const nowMs = Date.now();
+    const matchesToInsert = validMatches.map((m: any) => {
+      const matchTimestampMs = m.startTimestamp * 1000;
+      const deadlineMs = matchTimestampMs - 60000; // 1 minuto antes
+      let finalStatus = m.status?.description;
+
+      // FORÇAR ABERTURA DO FRONTEND ANTIGO: Se ainda estamos antes do prazo, finge que não começou
+      if (nowMs <= deadlineMs) {
+        finalStatus = "Not started";
+      }
+
+      return {
+        sofascore_match_id: m.id,
+        time_casa: m.homeTeam?.name,
+        time_visitante: m.awayTeam?.name,
+        horario_inicio: new Date(matchTimestampMs).toISOString(),
+        status: finalStatus,
+      };
+    });
 
     for (const match of matchesToInsert) {
       const { error } = await supabase

@@ -26,6 +26,7 @@ export default function Dashboard() {
   >({});
   const [savedStatus, setSavedStatus] = useState<Record<number, boolean>>({});
   const [lineupsCache, setLineupsCache] = useState<Record<number, any>>({});
+  const [activeTabs, setActiveTabs] = useState<Record<number, 'geral' | 'tempo'>>({});
 
   useEffect(() => {
     fetchMatches();
@@ -123,18 +124,28 @@ export default function Dashboard() {
     try {
       const { data, error } = await supabase
         .from("palpites")
-        .select("match_id, home, away, primeiro_gol_autor, primeiro_cartao_vermelho")
+        .select("match_id, home, away, total_gols, ambos_marcam, primeiro_gol_time, cartoes_1t, escanteios_1t, cartoes_2t, escanteios_2t, vencedor_prorrogacao, cartao_prorrogacao, vencedor_penaltis, artilheiro_nome, artilheiro_gols")
         .eq("user_id", user?.id);
 
       if (data) {
-        const loaded: Record<number, { home: string; away: string; primeiro_gol_autor?: string; primeiro_cartao_vermelho?: string }> = {};
+        const loaded: Record<number, any> = {};
         const statuses: Record<number, boolean> = {};
         data.forEach((p) => {
           loaded[p.match_id] = {
             home: String(p.home),
             away: String(p.away),
-            primeiro_gol_autor: p.primeiro_gol_autor,
-            primeiro_cartao_vermelho: p.primeiro_cartao_vermelho
+            total_gols: p.total_gols !== null ? String(p.total_gols) : "",
+            ambos_marcam: p.ambos_marcam,
+            primeiro_gol_time: p.primeiro_gol_time,
+            cartoes_1t: p.cartoes_1t,
+            escanteios_1t: p.escanteios_1t,
+            cartoes_2t: p.cartoes_2t,
+            escanteios_2t: p.escanteios_2t,
+            vencedor_prorrogacao: p.vencedor_prorrogacao,
+            cartao_prorrogacao: p.cartao_prorrogacao,
+            vencedor_penaltis: p.vencedor_penaltis,
+            artilheiro_nome: p.artilheiro_nome,
+            artilheiro_gols: p.artilheiro_gols !== null ? String(p.artilheiro_gols) : ""
           };
           statuses[p.match_id] = true;
         });
@@ -148,7 +159,7 @@ export default function Dashboard() {
 
   const handlePalpiteChange = (
     matchId: number,
-    field: "home" | "away" | "primeiro_gol_autor" | "primeiro_cartao_vermelho",
+    field: string,
     value: string,
   ) => {
     // Only allow numbers for score fields
@@ -172,7 +183,7 @@ export default function Dashboard() {
       const matchDate = new Date(match.startTimestamp * 1000);
       const deadline = new Date(matchDate.getTime() - 60000);
       const now = new Date();
-      if (now > deadline || match.status.description.toLowerCase() === "ended" || match.status.description.toLowerCase() === "finalizado") {
+      if (now > deadline) {
         return toast.error("Tempo esgotado para salvar palpites nesta partida.");
       }
     }
@@ -212,8 +223,18 @@ export default function Dashboard() {
           .update({
             home: parseInt(palpite.home, 10),
             away: parseInt(palpite.away, 10),
-            primeiro_gol_autor: palpite.primeiro_gol_autor || null,
-            primeiro_cartao_vermelho: palpite.primeiro_cartao_vermelho || null,
+            total_gols: palpite.total_gols !== "" ? parseInt(palpite.total_gols, 10) : null,
+            ambos_marcam: palpite.ambos_marcam || null,
+            primeiro_gol_time: palpite.primeiro_gol_time || null,
+            cartoes_1t: palpite.cartoes_1t || null,
+            escanteios_1t: palpite.escanteios_1t || null,
+            cartoes_2t: palpite.cartoes_2t || null,
+            escanteios_2t: palpite.escanteios_2t || null,
+            vencedor_prorrogacao: palpite.vencedor_prorrogacao || null,
+            cartao_prorrogacao: palpite.cartao_prorrogacao || null,
+            vencedor_penaltis: palpite.vencedor_penaltis || null,
+            artilheiro_nome: palpite.artilheiro_nome || null,
+            artilheiro_gols: palpite.artilheiro_gols !== "" ? parseInt(palpite.artilheiro_gols, 10) : null,
             updated_at: new Date().toISOString()
           })
           .eq("id", existing.id);
@@ -226,14 +247,24 @@ export default function Dashboard() {
             match_id: matchId,
             home: parseInt(palpite.home, 10),
             away: parseInt(palpite.away, 10),
-            primeiro_gol_autor: palpite.primeiro_gol_autor || null,
-            primeiro_cartao_vermelho: palpite.primeiro_cartao_vermelho || null
+            total_gols: palpite.total_gols !== "" ? parseInt(palpite.total_gols, 10) : null,
+            ambos_marcam: palpite.ambos_marcam || null,
+            primeiro_gol_time: palpite.primeiro_gol_time || null,
+            cartoes_1t: palpite.cartoes_1t || null,
+            escanteios_1t: palpite.escanteios_1t || null,
+            cartoes_2t: palpite.cartoes_2t || null,
+            escanteios_2t: palpite.escanteios_2t || null,
+            vencedor_prorrogacao: palpite.vencedor_prorrogacao || null,
+            cartao_prorrogacao: palpite.cartao_prorrogacao || null,
+            vencedor_penaltis: palpite.vencedor_penaltis || null,
+            artilheiro_nome: palpite.artilheiro_nome || null,
+            artilheiro_gols: palpite.artilheiro_gols !== "" ? parseInt(palpite.artilheiro_gols, 10) : null
           });
         if (error) throw error;
       }
 
       setSavedStatus((prev) => ({ ...prev, [matchId]: true }));
-      toast.success("Palpite salvo!");
+      toast.success("Palpite salvo com sucesso! Você está concorrendo a até 77 pontos neste jogo.");
     } catch (error: any) {
       toast.error("Erro ao salvar palpite.");
       console.error(error);
@@ -271,7 +302,7 @@ export default function Dashboard() {
           const matchDate = new Date(match.startTimestamp * 1000);
           const deadline = new Date(matchDate.getTime() - 60000);
           const now = new Date();
-          const isLocked = now > deadline || match.status.description.toLowerCase() === "ended" || match.status.description.toLowerCase() === "finalizado";
+          const isLocked = now > deadline;
           const currentPalpite = palpites[match.id] || { home: "", away: "" };
           const isSaved = savedStatus[match.id];
 
@@ -342,75 +373,256 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {!isLocked && (
-                <div className="px-6 py-3 border-t border-zinc-800/50 bg-zinc-900/30 space-y-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
-                      1º Autor do Gol (Extra)
-                    </label>
-                    <select
-                      disabled={isLocked || saving || !lineupsCache[match.id]}
-                      value={currentPalpite.primeiro_gol_autor || ""}
-                      onChange={(e) => handlePalpiteChange(match.id, "primeiro_gol_autor", e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
+              {!isLocked ? (
+                <>
+                  <div className="px-6 py-3 bg-zinc-900/80 border-t border-zinc-800/50 flex space-x-2 overflow-x-auto hide-scrollbar">
+                    <button
+                      onClick={() => setActiveTabs((prev) => ({ ...prev, [match.id]: 'geral' }))}
+                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${activeTabs[match.id] !== 'tempo' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
                     >
-                      <option value="">
-                        {!lineupsCache[match.id] ? "Aguardando escalação oficial..." : "Selecione um jogador..."}
-                      </option>
-                      {lineupsCache[match.id] && lineupsCache[match.id].map((playerName: string, idx: number) => (
-                        <option key={`gol-${idx}`} value={playerName}>
-                          {playerName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
-                      1º Cartão Vermelho (Extra)
-                    </label>
-                    <select
-                      disabled={isLocked || saving || !lineupsCache[match.id]}
-                      value={currentPalpite.primeiro_cartao_vermelho || ""}
-                      onChange={(e) => handlePalpiteChange(match.id, "primeiro_cartao_vermelho", e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
+                      Palpites Gerais
+                    </button>
+                    <button
+                      onClick={() => setActiveTabs((prev) => ({ ...prev, [match.id]: 'tempo' }))}
+                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${activeTabs[match.id] === 'tempo' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
                     >
-                      <option value="">
-                        {!lineupsCache[match.id] ? "Aguardando escalação oficial..." : "Nenhum / Selecione um jogador..."}
-                      </option>
-                      {lineupsCache[match.id] && lineupsCache[match.id].map((playerName: string, idx: number) => (
-                        <option key={`card-${idx}`} value={playerName}>
-                          {playerName}
-                        </option>
-                      ))}
-                    </select>
+                      Estatísticas de Tempo
+                    </button>
                   </div>
-                </div>
-              )}
 
-              {!isLocked && (
-                <div className="px-6 pb-6 pt-2">
-                  <button
-                    onClick={() => savePalpite(match.id)}
-                    disabled={
-                      saving ||
-                      currentPalpite.home === "" ||
-                      currentPalpite.away === ""
-                    }
-                    className={`w-full py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors
-                      ${
-                        isSaved
-                          ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                          : "bg-emerald-500 text-zinc-950 hover:bg-emerald-400 disabled:opacity-50 disabled:bg-zinc-800 disabled:text-zinc-500"
-                      }`}
-                  >
-                    {isSaved ? (
+                  <div className="px-6 py-4 border-t border-zinc-800/50 bg-zinc-900/30 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {activeTabs[match.id] !== 'tempo' ? (
                       <>
-                        <Check className="w-4 h-4" /> Palpite Salvo
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Total de Gols (5 pts)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            disabled={saving}
+                            value={currentPalpite.total_gols || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "total_gols", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                            placeholder="Ex: 3"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Ambos Marcam (4 pts)
+                          </label>
+                          <select
+                            disabled={saving}
+                            value={currentPalpite.ambos_marcam || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "ambos_marcam", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="Sim">Sim</option>
+                            <option value="Não">Não</option>
+                          </select>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Quem faz o 1º Gol (4 pts)
+                          </label>
+                          <select
+                            disabled={saving}
+                            value={currentPalpite.primeiro_gol_time || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "primeiro_gol_time", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="Casa">{match.homeTeam.name}</option>
+                            <option value="Visitante">{match.awayTeam.name}</option>
+                            <option value="Ninguém">Ninguém</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Artilheiro (Multi-Gols)
+                          </label>
+                          <select
+                            disabled={saving || !lineupsCache[match.id]}
+                            value={currentPalpite.artilheiro_nome || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "artilheiro_nome", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          >
+                            <option value="">{!lineupsCache[match.id] ? "Aguardando escalação..." : "Selecione o jogador..."}</option>
+                            {lineupsCache[match.id] && lineupsCache[match.id].map((playerName: string, idx: number) => (
+                              <option key={`art-${idx}`} value={playerName}>
+                                {playerName}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Qtd Gols do Artilheiro
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            disabled={saving || !currentPalpite.artilheiro_nome}
+                            value={currentPalpite.artilheiro_gols || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "artilheiro_gols", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
+                            placeholder="Ex: 2"
+                          />
+                        </div>
                       </>
                     ) : (
-                      "Salvar Palpite"
+                      <>
+                        <div className="md:col-span-2 text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-2">1º Tempo</div>
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Cartões (2 pts)
+                          </label>
+                          <select
+                            disabled={saving}
+                            value={currentPalpite.cartoes_1t || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "cartoes_1t", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="0-2">0 a 2</option>
+                            <option value="3-4">3 a 4</option>
+                            <option value="5+">5 ou mais</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Escanteios (2 pts)
+                          </label>
+                          <select
+                            disabled={saving}
+                            value={currentPalpite.escanteios_1t || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "escanteios_1t", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="<5">Menos de 5</option>
+                            <option value="5-7">Entre 5 e 7</option>
+                            <option value=">7">Mais de 7</option>
+                          </select>
+                        </div>
+                        <div className="md:col-span-2 text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-4">2º Tempo</div>
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Cartões (2 pts)
+                          </label>
+                          <select
+                            disabled={saving}
+                            value={currentPalpite.cartoes_2t || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "cartoes_2t", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="0-2">0 a 2</option>
+                            <option value="3-4">3 a 4</option>
+                            <option value="5+">5 ou mais</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Escanteios (2 pts)
+                          </label>
+                          <select
+                            disabled={saving}
+                            value={currentPalpite.escanteios_2t || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "escanteios_2t", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="<5">Menos de 5</option>
+                            <option value="5-7">Entre 5 e 7</option>
+                            <option value=">7">Mais de 7</option>
+                          </select>
+                        </div>
+                        <div className="md:col-span-2 text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-4">Mata-Mata (Prorrogação/Pênaltis)</div>
+                        <div className="md:col-span-2">
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Vencedor na Prorrogação (8 pts)
+                          </label>
+                          <select
+                            disabled={saving}
+                            value={currentPalpite.vencedor_prorrogacao || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "vencedor_prorrogacao", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="Casa">{match.homeTeam.name}</option>
+                            <option value="Visitante">{match.awayTeam.name}</option>
+                            <option value="Ninguém">Não vai para prorrogação/Empate</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Cartão Prorrogação (5 pts)
+                          </label>
+                          <select
+                            disabled={saving}
+                            value={currentPalpite.cartao_prorrogacao || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "cartao_prorrogacao", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="Sim">Sim</option>
+                            <option value="Não">Não</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
+                            Vencedor Pênaltis (8 pts)
+                          </label>
+                          <select
+                            disabled={saving}
+                            value={currentPalpite.vencedor_penaltis || ""}
+                            onChange={(e) => handlePalpiteChange(match.id, "vencedor_penaltis", e.target.value)}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="Casa">{match.homeTeam.name}</option>
+                            <option value="Visitante">{match.awayTeam.name}</option>
+                            <option value="Ninguém">Não vai para pênaltis</option>
+                          </select>
+                        </div>
+                      </>
                     )}
-                  </button>
+                  </div>
+                  <div className="px-6 pb-6 pt-2 border-t border-zinc-800/50 bg-zinc-900/30 sticky bottom-0 z-10 rounded-b-2xl">
+                    <button
+                      onClick={() => savePalpite(match.id)}
+                      disabled={
+                        saving ||
+                        currentPalpite.home === "" ||
+                        currentPalpite.away === ""
+                      }
+                      className={`w-full py-3 rounded-xl text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors
+                        ${
+                          isSaved
+                            ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                            : "bg-emerald-500 text-zinc-950 hover:bg-emerald-400 disabled:opacity-50 disabled:bg-zinc-800 disabled:text-zinc-500"
+                        }`}
+                    >
+                      {isSaved ? (
+                        <>
+                          <Check className="w-5 h-5" /> Palpite Salvo
+                        </>
+                      ) : (
+                        "Salvar Combo Pier Bet"
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="px-6 py-6 border-t border-zinc-800/50 bg-zinc-900/30 flex flex-col items-center justify-center space-y-2 rounded-b-2xl">
+                  <span className="px-4 py-2 bg-zinc-800 text-zinc-300 text-xs font-bold uppercase tracking-widest rounded-lg border border-zinc-700 shadow-inner">
+                    PALPITES ENCERRADOS - ACOMPANHE O PLACAR
+                  </span>
+                  <p className="text-zinc-500 text-[11px] text-center max-w-[250px]">
+                    Os palpites para este jogo foram bloqueados 1 minuto antes do início da partida.
+                  </p>
                 </div>
               )}
             </div>
