@@ -144,24 +144,28 @@ export default function MeusPalpites() {
                      <p className="text-[9px] text-zinc-500 mb-1 uppercase font-bold">Cartões 1T</p>
                      <div className="flex justify-between">
                        <span className="text-zinc-300">Palpite: {palpite.cartoes_1t || '-'}</span>
+                       <span className="text-amber-400 font-bold">{isLive && liveData?.stats ? liveData.stats.cards_1t : '-'}</span>
                      </div>
                    </div>
                    <div className="bg-zinc-950/50 p-2 rounded border border-zinc-800/50">
                      <p className="text-[9px] text-zinc-500 mb-1 uppercase font-bold">Escanteios 1T</p>
                      <div className="flex justify-between">
                        <span className="text-zinc-300">Palpite: {palpite.escanteios_1t || '-'}</span>
+                       <span className="text-emerald-400 font-bold">{isLive && liveData?.stats ? liveData.stats.corners_1t : '-'}</span>
                      </div>
                    </div>
                    <div className="bg-zinc-950/50 p-2 rounded border border-zinc-800/50">
                      <p className="text-[9px] text-zinc-500 mb-1 uppercase font-bold">Cartões 2T</p>
                      <div className="flex justify-between">
                        <span className="text-zinc-300">Palpite: {palpite.cartoes_2t || '-'}</span>
+                       <span className="text-amber-400 font-bold">{isLive && liveData?.stats ? liveData.stats.cards_2t : '-'}</span>
                      </div>
                    </div>
                    <div className="bg-zinc-950/50 p-2 rounded border border-zinc-800/50">
                      <p className="text-[9px] text-zinc-500 mb-1 uppercase font-bold">Escanteios 2T</p>
                      <div className="flex justify-between">
                        <span className="text-zinc-300">Palpite: {palpite.escanteios_2t || '-'}</span>
+                       <span className="text-emerald-400 font-bold">{isLive && liveData?.stats ? liveData.stats.corners_2t : '-'}</span>
                      </div>
                    </div>
                 </div>

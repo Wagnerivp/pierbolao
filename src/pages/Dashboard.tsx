@@ -53,6 +53,7 @@ export default function Dashboard() {
   const [liveMatches, setLiveMatches] = useState<Record<number, any>>({});
   const [liveScore, setLiveScore] = useState<number | null>(null);
   const [liveBreakdown, setLiveBreakdown] = useState({ pontos_1t: 0, pontos_2t: 0, pontos_gerais: 0 });
+  const [isSofascoreActive, setIsSofascoreActive] = useState<boolean>(false);
 
   useEffect(() => {
     // Poll for live match data
@@ -65,6 +66,9 @@ export default function Dashboard() {
             setLiveMatches(data.matches);
             if (data.breakdown) {
               setLiveBreakdown(data.breakdown);
+            }
+            if (data.isSofascoreActive !== undefined) {
+              setIsSofascoreActive(data.isSofascoreActive);
             }
           }
         }
@@ -549,31 +553,54 @@ export default function Dashboard() {
       </div>
 
       {Object.keys(liveMatches).length > 0 && (
-        <div className="p-4 rounded-xl bg-zinc-900 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)] relative overflow-hidden">
+        <div className={`p-4 rounded-xl bg-zinc-900 border ${isSofascoreActive ? 'border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.1)]'} relative overflow-hidden`}>
           <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-            <h2 className="text-xs font-bold text-red-500 uppercase tracking-widest">Live Tracking</h2>
+            <span className={`w-2 h-2 rounded-full animate-pulse ${isSofascoreActive ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+            <h2 className={`text-xs font-bold uppercase tracking-widest ${isSofascoreActive ? 'text-emerald-500' : 'text-red-500'}`}>Live Tracking & Estatísticas</h2>
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-4">
             {Object.entries(liveMatches).map(([id, live]: any) => (
-              <div key={id} className="flex items-center justify-between bg-zinc-950/50 p-2 rounded-lg border border-zinc-800">
-                <div className="flex items-center gap-2 flex-1">
-                  {live.homeFlag && <img src={live.homeFlag} alt="Home" className="w-6 h-6 object-contain" />}
-                  <span className="font-black text-white">{live.homeScore}</span>
-                </div>
-                
-                <div className="flex flex-col items-center justify-center px-4">
-                  <span className="text-[10px] text-zinc-500 font-bold mb-1">VS</span>
-                  <div className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                    <span>{live.time}{typeof live.time === 'number' ? "'" : ""}</span>
+              <div key={id} className="bg-zinc-950/50 rounded-lg border border-zinc-800 overflow-hidden">
+                <div className="flex items-center justify-between p-3 border-b border-zinc-800/50">
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="font-bold text-zinc-300 text-sm uppercase">{live.homeTeamName}</span>
+                    <span className="font-black text-white text-lg ml-auto">{live.homeScore}</span>
+                  </div>
+                  
+                  <div className="flex flex-col items-center justify-center px-4">
+                    <span className="text-[10px] text-zinc-500 font-bold mb-1">VS</span>
+                    <div className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                      <span>{live.time}{typeof live.time === 'number' ? "'" : ""}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-1 justify-start">
+                    <span className="font-black text-white text-lg mr-auto">{live.awayScore}</span>
+                    <span className="font-bold text-zinc-300 text-sm uppercase">{live.awayTeamName}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-1 justify-end">
-                  <span className="font-black text-white">{live.awayScore}</span>
-                  {live.awayFlag && <img src={live.awayFlag} alt="Away" className="w-6 h-6 object-contain" />}
-                </div>
+                {live.stats && (
+                  <div className="grid grid-cols-4 gap-px bg-zinc-800/50">
+                    <div className="bg-zinc-950 p-2 flex flex-col items-center justify-center text-center">
+                      <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Escanteios</span>
+                      <span className="text-sm font-black text-emerald-400">{live.stats.corners_1t + live.stats.corners_2t}</span>
+                    </div>
+                    <div className="bg-zinc-950 p-2 flex flex-col items-center justify-center text-center">
+                      <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Cartões</span>
+                      <span className="text-sm font-black text-amber-400">{live.stats.cards_1t + live.stats.cards_2t}</span>
+                    </div>
+                    <div className="bg-zinc-950 p-2 flex flex-col items-center justify-center text-center">
+                      <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Total Gols</span>
+                      <span className="text-sm font-black text-white">{live.stats.total_gols}</span>
+                    </div>
+                    <div className="bg-zinc-950 p-2 flex flex-col items-center justify-center text-center">
+                      <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Ambos Marcam</span>
+                      <span className="text-sm font-black text-white">{live.homeScore > 0 && live.awayScore > 0 ? "Sim" : "Não"}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
