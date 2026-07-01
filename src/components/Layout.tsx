@@ -57,6 +57,9 @@ export default function Layout() {
                 {user?.pontos_totais} pts
               </span>
             </div>
+            <Link to="/meus-palpites" className="text-[10px] text-emerald-400 font-bold mt-2 uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 transition-colors hover:bg-emerald-500/20">
+               Acompanhe Seu Palpite
+            </Link>
           </div>
           <button
             onClick={logout}

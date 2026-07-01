@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "react-hot-toast";
-import { Check, ShieldAlert } from "lucide-react";
+import { Check, ShieldAlert, Activity, Clock } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
@@ -49,6 +49,56 @@ export default function Dashboard() {
   >({});
   const [totalParticipants, setTotalParticipants] = useState<number>(0);
   const [showPixModal, setShowPixModal] = useState(false);
+
+  const [liveMatches, setLiveMatches] = useState<Record<number, any>>({});
+  const [liveScore, setLiveScore] = useState<number | null>(null);
+  const [liveBreakdown, setLiveBreakdown] = useState({ pontos_1t: 0, pontos_2t: 0, pontos_gerais: 0 });
+
+  useEffect(() => {
+    // Poll for live match data
+    const fetchLive = async () => {
+      try {
+        const res = await fetch(`/api/live-matches?user_id=${user?.id || ""}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.matches) {
+            setLiveMatches(data.matches);
+            if (data.breakdown) {
+              setLiveBreakdown(data.breakdown);
+            }
+          }
+        }
+      } catch (e) {}
+    };
+    fetchLive();
+    const interval = setInterval(fetchLive, 10000); // 10s
+    return () => clearInterval(interval);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !isSupabaseConfigured()) return;
+    // Set initial total score from auth context
+    setLiveScore(user.pontos_totais);
+
+    // Listen to real-time points update
+    const channel = supabase.channel('public:usuarios')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'usuarios',
+        filter: `id=eq.${user.id}`
+      }, (payload) => {
+        if (payload.new && typeof payload.new.pontos_totais === 'number') {
+          setLiveScore(payload.new.pontos_totais);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
 
   useEffect(() => {
     fetchMatches();
@@ -179,6 +229,27 @@ export default function Dashboard() {
     ];
     setMatches(fallback);
     fetchLineupsSequentially(fallback);
+  };
+
+  
+  const [refreshingLineup, setRefreshingLineup] = useState<Record<number, boolean>>({});
+
+  const refreshLineup = async (matchId: number) => {
+    setRefreshingLineup((prev) => ({ ...prev, [matchId]: true }));
+    try {
+      const res = await fetch(`/api/fetch-lineups?match_id=${matchId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && (data.homePlayers || (data.players && data.players.length > 0))) {
+          const playersData = data.homePlayers ? data : { homePlayers: data.players || [], awayPlayers: [] };
+          setLineupsCache((prev) => ({ ...prev, [matchId]: playersData }));
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRefreshingLineup((prev) => ({ ...prev, [matchId]: false }));
+    }
   };
 
   const fetchLineupsSequentially = async (matchList: any[]) => {
@@ -454,12 +525,60 @@ export default function Dashboard() {
           Seus Pontos Ao Vivo
         </h2>
         <div className="text-5xl font-black text-white tracking-tight drop-shadow-sm">
-          {livePoints}
+          {liveScore !== null ? liveScore : livePoints}
         </div>
-        <p className="text-xs text-zinc-400 mt-2 font-medium">
-          Acompanhe sua pontuação atualizada
+        
+        <div className="mt-4 w-full grid grid-cols-3 gap-2">
+           <div className="bg-zinc-950 p-2 rounded-lg border border-zinc-800/50">
+             <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Pontos 1T</p>
+             <p className="text-lg font-bold text-emerald-400 mt-0.5">{liveBreakdown.pontos_1t}</p>
+           </div>
+           <div className="bg-zinc-950 p-2 rounded-lg border border-zinc-800/50">
+             <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Pontos 2T</p>
+             <p className="text-lg font-bold text-emerald-400 mt-0.5">{liveBreakdown.pontos_2t}</p>
+           </div>
+           <div className="bg-zinc-950 p-2 rounded-lg border border-zinc-800/50">
+             <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Gerais</p>
+             <p className="text-lg font-bold text-emerald-400 mt-0.5">{liveBreakdown.pontos_gerais}</p>
+           </div>
+        </div>
+        
+        <p className="text-xs text-zinc-400 mt-3 font-medium">
+          Total = Gerais + 1T + 2T
         </p>
       </div>
+
+      {Object.keys(liveMatches).length > 0 && (
+        <div className="p-4 rounded-xl bg-zinc-900 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)] relative overflow-hidden">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+            <h2 className="text-xs font-bold text-red-500 uppercase tracking-widest">Live Tracking</h2>
+          </div>
+          
+          <div className="space-y-3">
+            {Object.entries(liveMatches).map(([id, live]: any) => (
+              <div key={id} className="flex items-center justify-between bg-zinc-950/50 p-2 rounded-lg border border-zinc-800">
+                <div className="flex items-center gap-2 flex-1">
+                  {live.homeFlag && <img src={live.homeFlag} alt="Home" className="w-6 h-6 object-contain" />}
+                  <span className="font-black text-white">{live.homeScore}</span>
+                </div>
+                
+                <div className="flex flex-col items-center justify-center px-4">
+                  <span className="text-[10px] text-zinc-500 font-bold mb-1">VS</span>
+                  <div className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    <span>{live.time}{typeof live.time === 'number' ? "'" : ""}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-1 justify-end">
+                  <span className="font-black text-white">{live.awayScore}</span>
+                  {live.awayFlag && <img src={live.awayFlag} alt="Away" className="w-6 h-6 object-contain" />}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 space-y-4">
         <div className="grid grid-cols-2 gap-4 text-center">
@@ -664,7 +783,7 @@ export default function Dashboard() {
 
               {!isLocked ? (
                 <>
-                  <div className="px-6 py-3 bg-zinc-900/80 border-t border-zinc-800/50 flex space-x-2 overflow-x-auto hide-scrollbar">
+                  <div className="px-6 py-3 bg-zinc-900/80 border-t border-zinc-800/50 flex flex-wrap gap-2">
                     <button
                       onClick={() =>
                         setActiveTabs((prev) => ({
@@ -946,7 +1065,17 @@ export default function Dashboard() {
                     ) : (
                       <div className="md:col-span-2 space-y-4">
                         <div className="text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-2 flex justify-between items-center">
-                          <span>Lista de Jogadores</span>
+                          <div className="flex items-center gap-2">
+                            <span>Lista de Jogadores</span>
+                            <button
+                              onClick={() => refreshLineup(match.id)}
+                              disabled={refreshingLineup[match.id]}
+                              className="bg-zinc-800 text-zinc-400 p-1 rounded hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+                              title="Atualizar Escalação Ao Vivo"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${refreshingLineup[match.id] ? 'animate-spin' : ''}`}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+                            </button>
+                          </div>
                           <span className="text-zinc-500 text-[9px]">
                             +10 pts acerto | -5 pts erro
                           </span>
@@ -965,36 +1094,80 @@ export default function Dashboard() {
                           </div>
                         ) : (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-3">
-                               <h4 className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest mb-3 border-b border-zinc-800 pb-2 flex items-center gap-2">
+                            <div className="space-y-4">
+                               <h4 className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest border-b border-zinc-800 pb-2 flex items-center gap-2">
                                  {lineupsCache[match.id].homeTeam || match.time_casa}
                                </h4>
-                               {lineupsCache[match.id].homePlayers?.map((playerName: string, idx: number) => {
-                                 const goalsStr = currentPalpite.jogadores_gols?.[playerName] || "";
-                                 return (
-                                   <div key={`home-${idx}`} className="flex items-center justify-between bg-zinc-950 p-2.5 rounded-lg border border-zinc-800">
-                                      <span className="text-[11px] text-zinc-300 font-medium truncate pr-2" title={playerName}>{playerName}</span>
-                                      <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={isLocked || saving} value={goalsStr} onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)} className="w-14 bg-zinc-900 border border-zinc-800 rounded p-1 text-center text-[11px] text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-zinc-700" placeholder="Gols" />
+                               
+                               <div className="relative">
+                                 <select
+                                   disabled={isLocked || saving}
+                                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-[11px] text-zinc-300 focus:outline-none focus:border-emerald-500/50 appearance-none"
+                                   onChange={(e) => {
+                                     if (e.target.value) {
+                                       handlePlayerGoalChange(match.id, e.target.value, "1");
+                                       e.target.value = "";
+                                     }
+                                   }}
+                                 >
+                                   <option value="">Selecione um jogador...</option>
+                                   {lineupsCache[match.id].homePlayers?.filter((p: string) => !currentPalpite.jogadores_gols?.[p]).map((playerName: string, idx: number) => (
+                                     <option key={`opt-home-${idx}`} value={playerName}>{playerName}</option>
+                                   ))}
+                                 </select>
+                               </div>
+
+                               <div className="space-y-2">
+                                 {Object.entries(currentPalpite.jogadores_gols || {}).filter(([p]) => lineupsCache[match.id].homePlayers?.includes(p)).map(([playerName, goalsStr]) => (
+                                   <div key={playerName} className="flex items-center justify-between bg-zinc-950 p-2.5 rounded-lg border border-emerald-500/30">
+                                      <span className="text-[11px] text-emerald-400 font-medium truncate pr-2" title={playerName}>{playerName}</span>
+                                      <div className="flex items-center gap-2">
+                                        <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={isLocked || saving} value={goalsStr as string} onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)} className="w-12 bg-zinc-900 border border-zinc-800 rounded p-1 text-center text-[11px] text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 transition-colors" placeholder="Gols" />
+                                        <button disabled={isLocked || saving} onClick={() => handlePlayerGoalChange(match.id, playerName, "")} className="text-zinc-500 hover:text-red-400 p-1">✕</button>
+                                      </div>
                                    </div>
-                                 );
-                               })}
+                                 ))}
+                               </div>
+                               
                                {(!lineupsCache[match.id].homePlayers || lineupsCache[match.id].homePlayers.length === 0) && (
                                  <p className="text-xs text-zinc-500 text-center py-4">Nenhum jogador encontrado</p>
                                )}
                             </div>
-                            <div className="space-y-3">
-                               <h4 className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest mb-3 border-b border-zinc-800 pb-2 flex items-center gap-2">
+                            <div className="space-y-4">
+                               <h4 className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest border-b border-zinc-800 pb-2 flex items-center gap-2">
                                  {lineupsCache[match.id].awayTeam || match.time_visitante}
                                </h4>
-                               {lineupsCache[match.id].awayPlayers?.map((playerName: string, idx: number) => {
-                                 const goalsStr = currentPalpite.jogadores_gols?.[playerName] || "";
-                                 return (
-                                   <div key={`away-${idx}`} className="flex items-center justify-between bg-zinc-950 p-2.5 rounded-lg border border-zinc-800">
-                                      <span className="text-[11px] text-zinc-300 font-medium truncate pr-2" title={playerName}>{playerName}</span>
-                                      <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={isLocked || saving} value={goalsStr} onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)} className="w-14 bg-zinc-900 border border-zinc-800 rounded p-1 text-center text-[11px] text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-zinc-700" placeholder="Gols" />
+                               
+                               <div className="relative">
+                                 <select
+                                   disabled={isLocked || saving}
+                                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-[11px] text-zinc-300 focus:outline-none focus:border-emerald-500/50 appearance-none"
+                                   onChange={(e) => {
+                                     if (e.target.value) {
+                                       handlePlayerGoalChange(match.id, e.target.value, "1");
+                                       e.target.value = "";
+                                     }
+                                   }}
+                                 >
+                                   <option value="">Selecione um jogador...</option>
+                                   {lineupsCache[match.id].awayPlayers?.filter((p: string) => !currentPalpite.jogadores_gols?.[p]).map((playerName: string, idx: number) => (
+                                     <option key={`opt-away-${idx}`} value={playerName}>{playerName}</option>
+                                   ))}
+                                 </select>
+                               </div>
+
+                               <div className="space-y-2">
+                                 {Object.entries(currentPalpite.jogadores_gols || {}).filter(([p]) => lineupsCache[match.id].awayPlayers?.includes(p)).map(([playerName, goalsStr]) => (
+                                   <div key={playerName} className="flex items-center justify-between bg-zinc-950 p-2.5 rounded-lg border border-emerald-500/30">
+                                      <span className="text-[11px] text-emerald-400 font-medium truncate pr-2" title={playerName}>{playerName}</span>
+                                      <div className="flex items-center gap-2">
+                                        <input type="text" inputMode="numeric" pattern="[0-9]*" disabled={isLocked || saving} value={goalsStr as string} onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)} className="w-12 bg-zinc-900 border border-zinc-800 rounded p-1 text-center text-[11px] text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 transition-colors" placeholder="Gols" />
+                                        <button disabled={isLocked || saving} onClick={() => handlePlayerGoalChange(match.id, playerName, "")} className="text-zinc-500 hover:text-red-400 p-1">✕</button>
+                                      </div>
                                    </div>
-                                 );
-                               })}
+                                 ))}
+                               </div>
+                               
                                {(!lineupsCache[match.id].awayPlayers || lineupsCache[match.id].awayPlayers.length === 0) && (
                                  <p className="text-xs text-zinc-500 text-center py-4">Nenhum jogador encontrado</p>
                                )}

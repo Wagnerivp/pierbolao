@@ -12,8 +12,7 @@ supabaseKey = supabaseKey.replace(/['"]/g, "").trim();
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 async function run() {
-  const { data, error } = await supabase.from('usuarios').select('*').limit(1);
-  console.log("Error:", error);
-  console.log("Data:", data);
+  const { data, error } = await supabase.from('partidas').select('*');
+  console.log("Data:", JSON.stringify(data));
 }
 run();

@@ -158,3 +158,8 @@ ALTER TABLE public.palpites ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Acesso total aos usuários" ON public.usuarios FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Acesso total as partidas" ON public.partidas FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Acesso total aos palpites" ON public.palpites FOR ALL USING (true) WITH CHECK (true);
+
+-- Atualização das colunas de evolução (NOVA REGRA: NÃO VOLÁTIL)
+ALTER TABLE public.palpites ADD COLUMN IF NOT EXISTS pontos_gerais INTEGER DEFAULT 0;
+ALTER TABLE public.palpites ADD COLUMN IF NOT EXISTS pontos_1t INTEGER DEFAULT 0;
+ALTER TABLE public.palpites ADD COLUMN IF NOT EXISTS pontos_2t INTEGER DEFAULT 0;
