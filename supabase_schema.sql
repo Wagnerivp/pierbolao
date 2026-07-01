@@ -44,8 +44,7 @@ CREATE TABLE public.palpites (
     vencedor_prorrogacao TEXT,
     cartao_prorrogacao TEXT,
     vencedor_penaltis TEXT,
-    artilheiro_nome TEXT,
-    artilheiro_gols INTEGER,
+    jogadores_gols JSONB DEFAULT '{}'::jsonb,
     pontos_obtidos INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -67,12 +66,13 @@ CREATE OR REPLACE FUNCTION public.calcular_pontos_partida(
     p_vencedor_prorrogacao TEXT,
     p_cartao_prorrogacao TEXT,
     p_vencedor_penaltis TEXT,
-    p_artilheiro_nome TEXT,
-    p_artilheiro_gols INTEGER
+    p_jogadores_gols JSONB
 ) RETURNS VOID AS $$
 DECLARE
     palpite RECORD;
     v_pontos INTEGER;
+    k text;
+    v text;
 BEGIN
     FOR palpite IN SELECT * FROM public.palpites WHERE match_id = p_match_id LOOP
         v_pontos := 0;
@@ -111,16 +111,26 @@ BEGIN
         IF palpite.escanteios_2t = p_escanteios_2t THEN v_pontos := v_pontos + 2; END IF;
 
         -- Mata-Mata
-        IF palpite.vencedor_prorrogacao = p_vencedor_prorrogacao THEN v_pontos := v_pontos + 8; END IF;
-        IF palpite.cartao_prorrogacao = p_cartao_prorrogacao THEN v_pontos := v_pontos + 5; END IF;
-        IF palpite.vencedor_penaltis = p_vencedor_penaltis THEN v_pontos := v_pontos + 8; END IF;
+        IF p_vencedor_prorrogacao IS NOT NULL AND p_vencedor_prorrogacao != 'Ninguém' THEN
+            IF palpite.vencedor_prorrogacao = p_vencedor_prorrogacao THEN v_pontos := v_pontos + 8; END IF;
+            IF palpite.cartao_prorrogacao = p_cartao_prorrogacao THEN v_pontos := v_pontos + 5; END IF;
+        END IF;
 
-        -- Artilheiro Multi-Gols
-        IF palpite.artilheiro_nome = p_artilheiro_nome AND palpite.artilheiro_gols = p_artilheiro_gols THEN
-            IF p_artilheiro_gols = 1 THEN v_pontos := v_pontos + 5;
-            ELSIF p_artilheiro_gols = 2 THEN v_pontos := v_pontos + 15;
-            ELSIF p_artilheiro_gols >= 3 THEN v_pontos := v_pontos + 25;
-            END IF;
+        IF p_vencedor_penaltis IS NOT NULL AND p_vencedor_penaltis != 'Ninguém' THEN
+            IF palpite.vencedor_penaltis = p_vencedor_penaltis THEN v_pontos := v_pontos + 8; END IF;
+        END IF;
+
+        -- Artilheiro Multi-Gols (Regra Anti-Espertinho)
+        IF palpite.jogadores_gols IS NOT NULL AND jsonb_typeof(palpite.jogadores_gols) = 'object' THEN
+            FOR k, v IN SELECT key, value FROM jsonb_each_text(palpite.jogadores_gols) LOOP
+                IF v::INTEGER > 0 THEN
+                    IF p_jogadores_gols IS NOT NULL AND p_jogadores_gols->>k IS NOT NULL AND (p_jogadores_gols->>k)::INTEGER = v::INTEGER THEN
+                        v_pontos := v_pontos + 10;
+                    ELSE
+                        v_pontos := v_pontos - 5;
+                    END IF;
+                END IF;
+            END LOOP;
         END IF;
 
         -- Atualiza os pontos obtidos no palpite

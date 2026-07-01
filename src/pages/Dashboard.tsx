@@ -22,11 +22,25 @@ export default function Dashboard() {
 
   // Store palpite: { matchId: { home: number, away: number } }
   const [palpites, setPalpites] = useState<
-    Record<number, { home: string; away: string; primeiro_gol_autor?: string; primeiro_cartao_vermelho?: string }>
+    Record<number, { 
+      home: string; 
+      away: string; 
+      total_gols?: string;
+      ambos_marcam?: string;
+      primeiro_gol_time?: string;
+      cartoes_1t?: string;
+      escanteios_1t?: string;
+      cartoes_2t?: string;
+      escanteios_2t?: string;
+      vencedor_prorrogacao?: string;
+      cartao_prorrogacao?: string;
+      vencedor_penaltis?: string;
+      jogadores_gols?: Record<string, string>;
+    }>
   >({});
   const [savedStatus, setSavedStatus] = useState<Record<number, boolean>>({});
   const [lineupsCache, setLineupsCache] = useState<Record<number, any>>({});
-  const [activeTabs, setActiveTabs] = useState<Record<number, 'geral' | 'tempo'>>({});
+  const [activeTabs, setActiveTabs] = useState<Record<number, 'geral' | 'tempo' | 'jogadores'>>({});
 
   useEffect(() => {
     fetchMatches();
@@ -124,7 +138,7 @@ export default function Dashboard() {
     try {
       const { data, error } = await supabase
         .from("palpites")
-        .select("match_id, home, away, total_gols, ambos_marcam, primeiro_gol_time, cartoes_1t, escanteios_1t, cartoes_2t, escanteios_2t, vencedor_prorrogacao, cartao_prorrogacao, vencedor_penaltis, artilheiro_nome, artilheiro_gols")
+        .select("match_id, home, away, total_gols, ambos_marcam, primeiro_gol_time, cartoes_1t, escanteios_1t, cartoes_2t, escanteios_2t, vencedor_prorrogacao, cartao_prorrogacao, vencedor_penaltis, jogadores_gols")
         .eq("user_id", user?.id);
 
       if (data) {
@@ -144,8 +158,7 @@ export default function Dashboard() {
             vencedor_prorrogacao: p.vencedor_prorrogacao,
             cartao_prorrogacao: p.cartao_prorrogacao,
             vencedor_penaltis: p.vencedor_penaltis,
-            artilheiro_nome: p.artilheiro_nome,
-            artilheiro_gols: p.artilheiro_gols !== null ? String(p.artilheiro_gols) : ""
+            jogadores_gols: p.jogadores_gols || {}
           };
           statuses[p.match_id] = true;
         });
@@ -165,13 +178,50 @@ export default function Dashboard() {
     // Only allow numbers for score fields
     if ((field === "home" || field === "away") && value !== "" && !/^\d+$/.test(value)) return;
 
-    setPalpites((prev) => ({
-      ...prev,
-      [matchId]: {
-        ...prev[matchId],
-        [field]: value,
-      },
-    }));
+    setPalpites((prev) => {
+      const matchPalpite = prev[matchId] || { home: "", away: "", jogadores_gols: {} };
+      const newHome = field === "home" ? value : matchPalpite.home;
+      const newAway = field === "away" ? value : matchPalpite.away;
+      
+      let newTotalGols = matchPalpite.total_gols;
+      if (newHome !== "" && newAway !== "") {
+        newTotalGols = String(parseInt(newHome, 10) + parseInt(newAway, 10));
+      }
+
+      return {
+        ...prev,
+        [matchId]: {
+          ...matchPalpite,
+          [field]: value,
+          ...(field === "home" || field === "away" ? { total_gols: newTotalGols } : {})
+        },
+      };
+    });
+    setSavedStatus((prev) => ({ ...prev, [matchId]: false }));
+  };
+
+  const handlePlayerGoalChange = (matchId: number, playerName: string, value: string) => {
+    if (value !== "" && !/^\d+$/.test(value)) return;
+    
+    setPalpites((prev) => {
+      const matchPalpite = prev[matchId] || { home: "", away: "", jogadores_gols: {} };
+      const currentJogadoresGols = matchPalpite.jogadores_gols || {};
+      
+      const newJogadoresGols = { ...currentJogadoresGols };
+      if (value === "" || value === "0") {
+        delete newJogadoresGols[playerName]; // Remove if empty or 0 to save space
+      } else {
+        newJogadoresGols[playerName] = value;
+      }
+      
+      return {
+        ...prev,
+        [matchId]: {
+          ...matchPalpite,
+          jogadores_gols: newJogadoresGols
+        }
+      };
+    });
     setSavedStatus((prev) => ({ ...prev, [matchId]: false }));
   };
 
@@ -233,8 +283,7 @@ export default function Dashboard() {
             vencedor_prorrogacao: palpite.vencedor_prorrogacao || null,
             cartao_prorrogacao: palpite.cartao_prorrogacao || null,
             vencedor_penaltis: palpite.vencedor_penaltis || null,
-            artilheiro_nome: palpite.artilheiro_nome || null,
-            artilheiro_gols: palpite.artilheiro_gols ? parseInt(palpite.artilheiro_gols, 10) : null,
+            jogadores_gols: palpite.jogadores_gols || {},
             updated_at: new Date().toISOString()
           })
           .eq("id", existing.id);
@@ -257,8 +306,7 @@ export default function Dashboard() {
             vencedor_prorrogacao: palpite.vencedor_prorrogacao || null,
             cartao_prorrogacao: palpite.cartao_prorrogacao || null,
             vencedor_penaltis: palpite.vencedor_penaltis || null,
-            artilheiro_nome: palpite.artilheiro_nome || null,
-            artilheiro_gols: palpite.artilheiro_gols ? parseInt(palpite.artilheiro_gols, 10) : null
+            jogadores_gols: palpite.jogadores_gols || {}
           });
         if (error) throw error;
       }
@@ -378,7 +426,7 @@ export default function Dashboard() {
                   <div className="px-6 py-3 bg-zinc-900/80 border-t border-zinc-800/50 flex space-x-2 overflow-x-auto hide-scrollbar">
                     <button
                       onClick={() => setActiveTabs((prev) => ({ ...prev, [match.id]: 'geral' }))}
-                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${activeTabs[match.id] !== 'tempo' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${!activeTabs[match.id] || activeTabs[match.id] === 'geral' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
                     >
                       Palpites Gerais
                     </button>
@@ -386,12 +434,18 @@ export default function Dashboard() {
                       onClick={() => setActiveTabs((prev) => ({ ...prev, [match.id]: 'tempo' }))}
                       className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${activeTabs[match.id] === 'tempo' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
                     >
-                      Estatísticas de Tempo
+                      Tempo / Mata-Mata
+                    </button>
+                    <button
+                      onClick={() => setActiveTabs((prev) => ({ ...prev, [match.id]: 'jogadores' }))}
+                      className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg whitespace-nowrap transition-colors ${activeTabs[match.id] === 'jogadores' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+                    >
+                      Jogadores (Gols)
                     </button>
                   </div>
 
                   <div className="px-6 py-4 border-t border-zinc-800/50 bg-zinc-900/30 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {activeTabs[match.id] !== 'tempo' ? (
+                    {(!activeTabs[match.id] || activeTabs[match.id] === 'geral') ? (
                       <>
                         <div>
                           <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
@@ -438,40 +492,8 @@ export default function Dashboard() {
                             <option value="Ninguém">Ninguém</option>
                           </select>
                         </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
-                            Artilheiro (Multi-Gols)
-                          </label>
-                          <select
-                            disabled={saving || !lineupsCache[match.id]}
-                            value={currentPalpite.artilheiro_nome || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "artilheiro_nome", e.target.value)}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors"
-                          >
-                            <option value="">{!lineupsCache[match.id] ? "Aguardando escalação..." : "Selecione o jogador..."}</option>
-                            {lineupsCache[match.id] && lineupsCache[match.id].map((playerName: string, idx: number) => (
-                              <option key={`art-${idx}`} value={playerName}>
-                                {playerName}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
-                            Qtd Gols do Artilheiro
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            disabled={saving || !currentPalpite.artilheiro_nome}
-                            value={currentPalpite.artilheiro_gols || ""}
-                            onChange={(e) => handlePalpiteChange(match.id, "artilheiro_gols", e.target.value)}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
-                            placeholder="Ex: 2"
-                          />
-                        </div>
                       </>
-                    ) : (
+                    ) : activeTabs[match.id] === 'tempo' ? (
                       <>
                         <div className="md:col-span-2 text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-2">1º Tempo</div>
                         <div>
@@ -588,6 +610,44 @@ export default function Dashboard() {
                           </select>
                         </div>
                       </>
+                    ) : (
+                      <div className="md:col-span-2 space-y-4">
+                        <div className="text-[11px] font-bold text-emerald-500 uppercase tracking-widest mt-2 flex justify-between items-center">
+                          <span>Lista de Jogadores</span>
+                          <span className="text-zinc-500 text-[9px]">+10 pts acerto | -5 pts erro</span>
+                        </div>
+                        
+                        {!lineupsCache[match.id] ? (
+                          <div className="text-center py-6 border border-dashed border-zinc-800 rounded-xl bg-zinc-950/50">
+                            <p className="text-zinc-400 text-sm">Aguardando escalação oficial...</p>
+                            <p className="text-zinc-600 text-xs mt-2 max-w-[280px] mx-auto">
+                              Assim que os times divulgarem a escalação oficial (geralmente 1h antes do jogo), a lista de jogadores aparecerá aqui.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 hide-scrollbar">
+                            {lineupsCache[match.id].map((playerName: string, idx: number) => {
+                              const goalsStr = currentPalpite.jogadores_gols?.[playerName] || "";
+                              return (
+                                <div key={`art-${idx}`} className="flex items-center justify-between bg-zinc-950 p-3 rounded-lg border border-zinc-800">
+                                  <span className="text-xs text-zinc-300 font-medium truncate pr-3" title={playerName}>
+                                    {playerName}
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    disabled={saving}
+                                    value={goalsStr}
+                                    onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)}
+                                    className="w-16 bg-zinc-900 border border-zinc-700 rounded-md p-1.5 text-center text-sm text-emerald-400 font-bold focus:outline-none focus:border-emerald-500 transition-colors placeholder:text-zinc-700"
+                                    placeholder="Gols"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="px-6 pb-6 pt-2 border-t border-zinc-800/50 bg-zinc-900/30 sticky bottom-0 z-10 rounded-b-2xl">
