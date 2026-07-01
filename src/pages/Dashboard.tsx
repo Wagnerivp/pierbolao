@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "react-hot-toast";
@@ -37,31 +36,33 @@ export default function Dashboard() {
 
   const fetchMatches = async () => {
     try {
-      const res = await axios.get("/api/matches");
-      if (res.data.success) {
-        const events = res.data.events || [];
-        setMatches(events);
-
-        // Fetch lineups sequentially in background for all matches to avoid rate limits
-        const fetchLineupsSequentially = async () => {
-          for (const m of events) {
-            try {
-              const lRes = await axios.get(`/api/lineups?matchId=${m.id}`);
-              if (lRes.data.success && lRes.data.lineups) {
-                setLineupsCache((prev) => ({ ...prev, [m.id]: lRes.data.lineups }));
-              }
-              // Wait 1 second before next request to respect rate limits
-              await new Promise((resolve) => setTimeout(resolve, 1000));
-            } catch (e) {
-              console.error("Lineup error:", e);
-            }
-          }
-        };
-        fetchLineupsSequentially();
+      if (!isSupabaseConfigured()) {
+        setMatches([]);
+        return;
       }
+      
+      const { data, error } = await supabase
+        .from('partidas')
+        .select('*')
+        .order('horario_inicio', { ascending: true });
+        
+      if (error) {
+        throw error;
+      }
+      
+      const formattedMatches = (data || []).map(p => ({
+        id: p.sofascore_match_id,
+        homeTeam: { name: p.time_casa, nameCode: p.time_casa.substring(0, 3).toUpperCase() },
+        awayTeam: { name: p.time_visitante, nameCode: p.time_visitante.substring(0, 3).toUpperCase() },
+        startTimestamp: Math.floor(new Date(p.horario_inicio).getTime() / 1000),
+        status: { description: p.status || "Not started" }
+      }));
+      
+      setMatches(formattedMatches);
+
     } catch (error: any) {
       console.error("Erro ao buscar partidas:", error);
-      toast.error(`Erro: ${error?.message || "ao carregar jogos"}`);
+      toast.error(`Erro ao carregar jogos: ${error?.message || "Falha de conexão"}`);
     } finally {
       setLoading(false);
     }
@@ -388,7 +389,7 @@ export default function Dashboard() {
         {matches.length === 0 && (
           <div className="text-center py-10 bg-zinc-900/50 rounded-2xl border border-zinc-800 mt-4">
             <p className="text-zinc-500 text-sm">
-              Nenhuma partida oficial encontrada.
+              Nenhuma partida disponível no momento.
             </p>
           </div>
         )}

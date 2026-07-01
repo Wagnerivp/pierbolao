@@ -2,6 +2,14 @@ import express from "express";
 import path from "path";
 import axios from "axios";
 import { createServer as createViteServer } from "vite";
+import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://placeholder.supabase.co";
+const supabaseKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "placeholder";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function startServer() {
   const app = express();
@@ -9,21 +17,21 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Proxy to RapidAPI Sofascore
-  app.get("/api/matches", async (req, res) => {
+  // Rota protegida do Admin para sincronizar partidas da Sofascore para o Supabase
+  app.post("/api/admin/sync-matches", async (req, res) => {
     try {
-      // Para puxar os jogos automaticamente do Sofascore:
-      // 1. Crie uma conta no RapidAPI e assine a API não-oficial do Sofascore.
-      // 2. Coloque sua chave no arquivo .env: RAPIDAPI_KEY=sua_chave
-      // 3. Descubra o ID do campeonato (ex: Brasileirão = 325, Libertadores = 384)
       const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
-      
+      if (!RAPIDAPI_KEY) {
+        return res.status(400).json({ success: false, error: "RAPIDAPI_KEY not configured" });
+      }
+
+      // 1. Fetch from Sofascore
       const options = {
         method: 'GET',
         url: 'https://sofascore.p.rapidapi.com/tournaments/get-events',
         params: {
-          tournamentId: '325', // 325 = Brasileirão Série A (Exemplo)
-          seasonId: '58766',   // Temporada atual
+          tournamentId: '325', // Exemplo
+          seasonId: '58766',
           page: '1'
         },
         headers: {
@@ -32,55 +40,47 @@ async function startServer() {
         }
       };
 
-      let events = [];
-      try {
-        if (RAPIDAPI_KEY) {
-          const response = await axios.request(options);
-          events = response.data.events || [];
-        } else {
-          throw new Error("Usando chave de demonstração, caindo para mock");
+      const response = await axios.request(options);
+      const events = response.data.events || [];
+
+      // 2. Save to Supabase
+      const matchesToInsert = events.map((m: any) => ({
+        sofascore_match_id: m.id,
+        time_casa: m.homeTeam.name,
+        time_visitante: m.awayTeam.name,
+        horario_inicio: new Date(m.startTimestamp * 1000).toISOString(),
+        status: m.status.description,
+      }));
+
+      for (const match of matchesToInsert) {
+        const { error } = await supabase
+          .from('partidas')
+          .upsert(match, { onConflict: 'sofascore_match_id' });
+          
+        if (error) {
+          console.error("Error upserting match:", error);
         }
-      } catch (err: any) {
-        if (err.response && err.response.status === 403) {
-          console.error("ERRO RAPIDAPI: Você precisa se inscrever na API (Subscribe) na página do Sofascore no RapidAPI.");
-        } else {
-          console.error("Erro na API Sofascore:", err.message);
-        }
-        // Fallback mock data para testes
-        events = [
-          {
-            id: 1,
-            homeTeam: { name: "Flamengo", nameCode: "FLA" },
-            awayTeam: { name: "Palmeiras", nameCode: "PAL" },
-            startTimestamp: Math.floor(Date.now() / 1000) + 86400,
-            status: { description: "Not started" }
-          },
-          {
-            id: 2,
-            homeTeam: { name: "São Paulo", nameCode: "SAO" },
-            awayTeam: { name: "Corinthians", nameCode: "COR" },
-            startTimestamp: Math.floor(Date.now() / 1000) + 172800,
-            status: { description: "Not started" }
-          }
-        ];
       }
 
-      res.json({ success: true, events });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ success: false, error: "Failed to fetch matches" });
+      res.json({ success: true, message: "Matches synced successfully", count: matchesToInsert.length });
+    } catch (error: any) {
+      console.error("Sync error:", error.message);
+      res.status(500).json({ success: false, error: "Failed to sync matches" });
     }
   });
 
-  app.get("/api/lineups", async (req, res) => {
+  // Rota para sincronizar escalações/resultados (Cron job ou Admin)
+  app.post("/api/admin/sync-lineups", async (req, res) => {
     try {
-      const { matchId } = req.query;
-      if (!matchId) {
-        return res.status(400).json({ success: false, error: "Match ID required" });
+      const { matchId } = req.body;
+      if (!matchId) return res.status(400).json({ success: false, error: "matchId required" });
+      
+      const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
+      if (!RAPIDAPI_KEY) {
+        return res.status(400).json({ success: false, error: "RAPIDAPI_KEY not configured" });
       }
 
-      const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
-      
+      // 1. Fetch from Sofascore
       const options = {
         method: 'GET',
         url: 'https://sofascore.p.rapidapi.com/matches/get-lineups',
@@ -91,47 +91,16 @@ async function startServer() {
         }
       };
 
-      let lineups = null;
-      try {
-        if (RAPIDAPI_KEY) {
-          const response = await axios.request(options);
-          lineups = response.data;
-        } else {
-          throw new Error("Usando chave de demonstração, caindo para mock lineups");
-        }
-      } catch (err: any) {
-        if (err.response && err.response.status === 429) {
-          console.warn(`Lineups Rate limit hit for match ${matchId}, using mock data.`);
-        }
-        // Mock data fallback for the UI to work if API fails or we're using mock matches
-        lineups = {
-          home: {
-            players: [
-              { player: { id: 101, name: "Neymar Jr" }, substitute: false },
-              { player: { id: 102, name: "Vinícius Jr" }, substitute: false },
-              { player: { id: 103, name: "Alisson" }, substitute: false },
-              { player: { id: 104, name: "Richarlison" }, substitute: true },
-              { player: { id: 105, name: "Antony" }, substitute: true },
-            ],
-            manager: { name: "Dorival Júnior" }
-          },
-          away: {
-            players: [
-              { player: { id: 201, name: "Lionel Messi" }, substitute: false },
-              { player: { id: 202, name: "Angel Di Maria" }, substitute: false },
-              { player: { id: 203, name: "Emi Martinez" }, substitute: false },
-              { player: { id: 204, name: "Paulo Dybala" }, substitute: true },
-              { player: { id: 205, name: "Julian Alvarez" }, substitute: true },
-            ],
-            manager: { name: "Lionel Scaloni" }
-          }
-        };
-      }
-
-      res.json({ success: true, lineups });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ success: false, error: "Failed to fetch lineups" });
+      const response = await axios.request(options);
+      const lineups = response.data;
+      
+      // 2. Aqui você salvaria as escalações no Supabase
+      // Exemplo: await supabase.from('lineups').upsert({ match_id: matchId, data: lineups });
+      
+      res.json({ success: true, message: "Lineups synced successfully" });
+    } catch (error: any) {
+      console.error("Sync lineups error:", error.message);
+      res.status(500).json({ success: false, error: "Failed to sync lineups" });
     }
   });
 

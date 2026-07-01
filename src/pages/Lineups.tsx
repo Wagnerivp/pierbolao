@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Shield, Clock, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 export default function Lineups() {
   const [matches, setMatches] = useState<any[]>([]);
@@ -16,16 +17,32 @@ export default function Lineups() {
 
   const fetchMatches = async () => {
     try {
-      const res = await fetch("/api/matches");
-      const data = await res.json();
-      if (data.success && data.events) {
-        setMatches(data.events || []);
-      } else {
+      if (!isSupabaseConfigured()) {
         setMatches([]);
+        return;
       }
+      
+      const { data, error } = await supabase
+        .from('partidas')
+        .select('*')
+        .order('horario_inicio', { ascending: true });
+        
+      if (error) {
+        throw error;
+      }
+      
+      const formattedMatches = (data || []).map(p => ({
+        id: p.sofascore_match_id,
+        homeTeam: { name: p.time_casa, nameCode: p.time_casa.substring(0, 3).toUpperCase() },
+        awayTeam: { name: p.time_visitante, nameCode: p.time_visitante.substring(0, 3).toUpperCase() },
+        startTimestamp: Math.floor(new Date(p.horario_inicio).getTime() / 1000),
+        status: { description: p.status || "Not started" }
+      }));
+      
+      setMatches(formattedMatches);
     } catch (err: any) {
       console.error("Erro escalações:", err);
-      toast.error(`Erro: ${err?.message || "ao carregar jogos"}`);
+      toast.error(`Erro ao carregar jogos: ${err?.message || "Falha de conexão"}`);
     } finally {
       setLoadingMatches(false);
     }
@@ -36,15 +53,24 @@ export default function Lineups() {
     setLineups(null);
     setLoadingLineups(true);
     try {
-      const res = await fetch(`/api/lineups?matchId=${match.id}`);
-      const data = await res.json();
-      if (data.success && data.lineups) {
-        setLineups(data.lineups);
+      if (!isSupabaseConfigured()) {
+        toast.error("Banco de dados não configurado");
+        return;
+      }
+      
+      const { data, error } = await supabase
+        .from('lineups')
+        .select('*')
+        .eq('match_id', match.id)
+        .single();
+        
+      if (data && data.data) {
+        setLineups(data.data);
       } else {
-        toast.error("Escalações ainda não disponíveis para este jogo");
+        toast.error("Escalações ainda não disponíveis para este jogo no banco");
       }
     } catch (err) {
-      toast.error("Erro ao carregar escalações");
+      toast.error("Erro ao carregar escalações ou tabela inexistente");
     } finally {
       setLoadingLineups(false);
     }
