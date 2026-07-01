@@ -29,22 +29,7 @@ export default function Login() {
     }
 
     if (!isSupabaseConfigured()) {
-      setLoading(true);
-      setTimeout(() => {
-        setLoading(false);
-        const mockUser = {
-          id: 'mock-user-123',
-          nome: formData.nome || 'Usuário Teste',
-          telefone: formData.telefone,
-          pontos_totais: 150,
-          acertos_placar_exato: 5,
-          is_approved: true,
-          is_locked: false
-        };
-        toast.success(isRegistering ? "Cadastro realizado (Modo de Teste)" : `Bem-vindo, ${mockUser.nome}! (Modo de Teste)`);
-        login(mockUser);
-        navigate('/');
-      }, 1000);
+      toast.error("Banco de dados não configurado");
       return;
     }
 
@@ -116,25 +101,11 @@ export default function Login() {
                                 error.message?.includes('network');
 
       if (isConnectionError || !import.meta.env.VITE_SUPABASE_URL?.startsWith('http')) {
-        toast.error('Modo offline/teste ativado (sem conexão com banco de dados).');
-        setTimeout(() => {
-          setLoading(false);
-          const mockUser = {
-            id: 'mock-user-123',
-            nome: formData.nome || 'Usuário Teste',
-            telefone: formData.telefone,
-            pontos_totais: 150,
-            acertos_placar_exato: 5,
-            is_approved: true,
-            is_locked: false
-          };
-          login(mockUser);
-          navigate('/');
-        }, 1000);
+        toast.error('Erro de conexão com o banco de dados.');
       } else {
         toast.error(error.message || "Ocorreu um erro.");
-        setLoading(false);
       }
+      setLoading(false);
     }
   };
 

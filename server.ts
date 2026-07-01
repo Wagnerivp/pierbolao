@@ -17,23 +17,15 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Rota protegida do Admin para sincronizar partidas da Sofascore para o Supabase
-  app.post("/api/admin/sync-matches", async (req, res) => {
+  app.post("/api/fetch-matches", async (req, res) => {
     try {
-      const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
-      if (!RAPIDAPI_KEY) {
-        return res.status(400).json({ success: false, error: "RAPIDAPI_KEY not configured" });
-      }
+      const RAPIDAPI_KEY = "3dd5119643msh5fd4694fc97b882p17f897jsnd406196f787f";
+      const date = new Date().toISOString().split('T')[0]; // Current date
 
-      // 1. Fetch from Sofascore
       const options = {
         method: 'GET',
-        url: 'https://sofascore.p.rapidapi.com/tournaments/get-events',
-        params: {
-          tournamentId: '325', // Exemplo
-          seasonId: '58766',
-          page: '1'
-        },
+        url: 'https://sofascore.p.rapidapi.com/matches/by-date',
+        params: { date },
         headers: {
           'X-RapidAPI-Key': RAPIDAPI_KEY,
           'X-RapidAPI-Host': 'sofascore.p.rapidapi.com'
@@ -41,15 +33,20 @@ async function startServer() {
       };
 
       const response = await axios.request(options);
-      const events = response.data.events || [];
+      let events = response.data.events || [];
 
-      // 2. Save to Supabase
-      const matchesToInsert = events.map((m: any) => ({
+      // FILTRO OBRIGATÓRIO: APENAS Copa do Mundo (World Cup)
+      const validMatches = events.filter((m: any) => 
+        m.tournament?.name === "World Cup" || m.tournament?.uniqueName === "World Cup"
+      );
+
+      // Save to Supabase
+      const matchesToInsert = validMatches.map((m: any) => ({
         sofascore_match_id: m.id,
-        time_casa: m.homeTeam.name,
-        time_visitante: m.awayTeam.name,
+        time_casa: m.homeTeam?.name,
+        time_visitante: m.awayTeam?.name,
         horario_inicio: new Date(m.startTimestamp * 1000).toISOString(),
-        status: m.status.description,
+        status: m.status?.description,
       }));
 
       for (const match of matchesToInsert) {
@@ -69,22 +66,17 @@ async function startServer() {
     }
   });
 
-  // Rota para sincronizar escalações/resultados (Cron job ou Admin)
-  app.post("/api/admin/sync-lineups", async (req, res) => {
+  app.get("/api/fetch-lineups", async (req, res) => {
     try {
-      const { matchId } = req.body;
-      if (!matchId) return res.status(400).json({ success: false, error: "matchId required" });
+      const { match_id } = req.query;
+      if (!match_id) return res.status(400).json({ success: false, error: "match_id required" });
       
-      const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
-      if (!RAPIDAPI_KEY) {
-        return res.status(400).json({ success: false, error: "RAPIDAPI_KEY not configured" });
-      }
-
-      // 1. Fetch from Sofascore
+      const RAPIDAPI_KEY = "3dd5119643msh5fd4694fc97b882p17f897jsnd406196f787f";
+      
       const options = {
         method: 'GET',
         url: 'https://sofascore.p.rapidapi.com/matches/get-lineups',
-        params: { matchId },
+        params: { matchId: match_id },
         headers: {
           'X-RapidAPI-Key': RAPIDAPI_KEY,
           'X-RapidAPI-Host': 'sofascore.p.rapidapi.com'
@@ -94,13 +86,20 @@ async function startServer() {
       const response = await axios.request(options);
       const lineups = response.data;
       
-      // 2. Aqui você salvaria as escalações no Supabase
-      // Exemplo: await supabase.from('lineups').upsert({ match_id: matchId, data: lineups });
+      // Return a clean array of players from both teams (starters and subs)
+      const extractPlayers = (team: any) => {
+        if (!team || !team.players) return [];
+        return team.players.map((p: any) => p.player?.name).filter(Boolean);
+      };
+
+      const homePlayers = extractPlayers(lineups?.home);
+      const awayPlayers = extractPlayers(lineups?.away);
+      const allPlayers = [...homePlayers, ...awayPlayers];
       
-      res.json({ success: true, message: "Lineups synced successfully" });
+      res.json({ success: true, players: allPlayers });
     } catch (error: any) {
       console.error("Sync lineups error:", error.message);
-      res.status(500).json({ success: false, error: "Failed to sync lineups" });
+      res.status(500).json({ success: false, error: "Failed to fetch lineups" });
     }
   });
 

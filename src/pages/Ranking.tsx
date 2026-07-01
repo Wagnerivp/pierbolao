@@ -22,11 +22,6 @@ export default function Ranking() {
   const fetchRanking = async () => {
     try {
       if (!isSupabaseConfigured()) {
-         setUsers([
-             { id: '1', nome: 'Ricardo Mendes', pontos_totais: 642, acertos_placar_exato: 22 },
-             { id: '2', nome: 'Carla Souza', pontos_totais: 598, acertos_placar_exato: 19 },
-             { id: 'mock-user-123', nome: currentUser?.nome || 'Você', pontos_totais: 150, acertos_placar_exato: 5 },
-         ].sort((a, b) => b.pontos_totais - a.pontos_totais));
          setLoading(false);
          return;
       }

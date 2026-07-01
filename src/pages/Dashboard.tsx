@@ -60,6 +60,26 @@ export default function Dashboard() {
       
       setMatches(formattedMatches);
 
+      const fetchLineupsSequentially = async () => {
+        for (const m of formattedMatches) {
+          try {
+            const res = await fetch(`/api/fetch-lineups?match_id=${m.id}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.success && data.players && data.players.length > 0) {
+                setLineupsCache((prev) => ({ ...prev, [m.id]: data.players }));
+              }
+            }
+          } catch (e) {
+            console.error("Lineup error:", e);
+          }
+        }
+      };
+      
+      if (formattedMatches.length > 0) {
+        fetchLineupsSequentially();
+      }
+
     } catch (error: any) {
       console.error("Erro ao buscar partidas:", error);
       toast.error(`Erro ao carregar jogos: ${error?.message || "Falha de conexão"}`);
@@ -68,11 +88,9 @@ export default function Dashboard() {
     }
   };
 
-    const fetchUserPalpites = async () => {
+  const fetchUserPalpites = async () => {
     if (!isSupabaseConfigured()) {
-        setPalpites({ 1: { home: '2', away: '1' } });
-        setSavedStatus({ 1: true });
-        return;
+      return;
     }
     try {
       const { data, error } = await supabase
@@ -299,27 +317,13 @@ export default function Dashboard() {
                       <option value="">
                         {!lineupsCache[match.id] ? "Aguardando escalação oficial..." : "Selecione um jogador..."}
                       </option>
-                      {lineupsCache[match.id] && (
-                        <>
-                          <optgroup label={match.homeTeam.name}>
-                            {lineupsCache[match.id].home?.players?.map((p: any) => (
-                              <option key={`home-${p.player.id}`} value={p.player.name}>
-                                {p.player.name} {p.substitute ? '(Reserva)' : ''}
-                              </option>
-                            ))}
-                          </optgroup>
-                          <optgroup label={match.awayTeam.name}>
-                            {lineupsCache[match.id].away?.players?.map((p: any) => (
-                              <option key={`away-${p.player.id}`} value={p.player.name}>
-                                {p.player.name} {p.substitute ? '(Reserva)' : ''}
-                              </option>
-                            ))}
-                          </optgroup>
-                        </>
-                      )}
+                      {lineupsCache[match.id] && lineupsCache[match.id].map((playerName: string, idx: number) => (
+                        <option key={`gol-${idx}`} value={playerName}>
+                          {playerName}
+                        </option>
+                      ))}
                     </select>
                   </div>
-
                   <div>
                     <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
                       1º Cartão Vermelho (Extra)
@@ -333,24 +337,11 @@ export default function Dashboard() {
                       <option value="">
                         {!lineupsCache[match.id] ? "Aguardando escalação oficial..." : "Nenhum / Selecione um jogador..."}
                       </option>
-                      {lineupsCache[match.id] && (
-                        <>
-                          <optgroup label={match.homeTeam.name}>
-                            {lineupsCache[match.id].home?.players?.map((p: any) => (
-                              <option key={`home-${p.player.id}`} value={p.player.name}>
-                                {p.player.name} {p.substitute ? '(Reserva)' : ''}
-                              </option>
-                            ))}
-                          </optgroup>
-                          <optgroup label={match.awayTeam.name}>
-                            {lineupsCache[match.id].away?.players?.map((p: any) => (
-                              <option key={`away-${p.player.id}`} value={p.player.name}>
-                                {p.player.name} {p.substitute ? '(Reserva)' : ''}
-                              </option>
-                            ))}
-                          </optgroup>
-                        </>
-                      )}
+                      {lineupsCache[match.id] && lineupsCache[match.id].map((playerName: string, idx: number) => (
+                        <option key={`card-${idx}`} value={playerName}>
+                          {playerName}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>

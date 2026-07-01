@@ -9,7 +9,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Ranking from "./pages/Ranking";
-import Lineups from "./pages/Lineups";
+import AdminDashboard from "./pages/AdminDashboard";
 import Layout from "./components/Layout";
 import type { ReactNode } from "react";
 
@@ -54,7 +54,7 @@ export default function App() {
             >
               <Route index element={<Dashboard />} />
               <Route path="ranking" element={<Ranking />} />
-              <Route path="escalacoes" element={<Lineups />} />
+              <Route path="admin" element={<AdminDashboard />} />
             </Route>
           </Routes>
         </div>
