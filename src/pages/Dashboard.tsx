@@ -627,7 +627,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2 shrink-0">
                   <input
                     type="number"
-                    disabled={!userStatus.pago || isLocked || saving}
+                    disabled={isLocked || saving}
                     value={currentPalpite.home}
                     placeholder="0"
                     onChange={(e) =>
@@ -640,7 +640,7 @@ export default function Dashboard() {
                   </span>
                   <input
                     type="number"
-                    disabled={!userStatus.pago || isLocked || saving}
+                    disabled={isLocked || saving}
                     value={currentPalpite.away}
                     placeholder="0"
                     onChange={(e) =>
@@ -711,7 +711,7 @@ export default function Dashboard() {
                           <input
                             type="number"
                             min="0"
-                            disabled={!userStatus.pago || saving}
+                            disabled={isLocked || saving}
                             value={currentPalpite.total_gols || ""}
                             onChange={(e) =>
                               handlePalpiteChange(
@@ -729,7 +729,7 @@ export default function Dashboard() {
                             Ambos Marcam (4 pts)
                           </label>
                           <select
-                            disabled={!userStatus.pago || saving}
+                            disabled={isLocked || saving}
                             value={currentPalpite.ambos_marcam || ""}
                             onChange={(e) =>
                               handlePalpiteChange(
@@ -750,7 +750,7 @@ export default function Dashboard() {
                             Quem faz o 1º Gol (4 pts)
                           </label>
                           <select
-                            disabled={!userStatus.pago || saving}
+                            disabled={isLocked || saving}
                             value={currentPalpite.primeiro_gol_time || ""}
                             onChange={(e) =>
                               handlePalpiteChange(
@@ -780,7 +780,7 @@ export default function Dashboard() {
                             Cartões (2 pts)
                           </label>
                           <select
-                            disabled={!userStatus.pago || saving}
+                            disabled={isLocked || saving}
                             value={currentPalpite.cartoes_1t || ""}
                             onChange={(e) =>
                               handlePalpiteChange(
@@ -802,7 +802,7 @@ export default function Dashboard() {
                             Escanteios (2 pts)
                           </label>
                           <select
-                            disabled={!userStatus.pago || saving}
+                            disabled={isLocked || saving}
                             value={currentPalpite.escanteios_1t || ""}
                             onChange={(e) =>
                               handlePalpiteChange(
@@ -827,7 +827,7 @@ export default function Dashboard() {
                             Cartões (2 pts)
                           </label>
                           <select
-                            disabled={!userStatus.pago || saving}
+                            disabled={isLocked || saving}
                             value={currentPalpite.cartoes_2t || ""}
                             onChange={(e) =>
                               handlePalpiteChange(
@@ -849,7 +849,7 @@ export default function Dashboard() {
                             Escanteios (2 pts)
                           </label>
                           <select
-                            disabled={!userStatus.pago || saving}
+                            disabled={isLocked || saving}
                             value={currentPalpite.escanteios_2t || ""}
                             onChange={(e) =>
                               handlePalpiteChange(
@@ -874,7 +874,7 @@ export default function Dashboard() {
                             Vencedor na Prorrogação (8 pts)
                           </label>
                           <select
-                            disabled={!userStatus.pago || saving}
+                            disabled={isLocked || saving}
                             value={currentPalpite.vencedor_prorrogacao || ""}
                             onChange={(e) =>
                               handlePalpiteChange(
@@ -900,7 +900,7 @@ export default function Dashboard() {
                             Cartão Prorrogação (5 pts)
                           </label>
                           <select
-                            disabled={!userStatus.pago || saving}
+                            disabled={isLocked || saving}
                             value={currentPalpite.cartao_prorrogacao || ""}
                             onChange={(e) =>
                               handlePalpiteChange(
@@ -921,7 +921,7 @@ export default function Dashboard() {
                             Vencedor Pênaltis (8 pts)
                           </label>
                           <select
-                            disabled={!userStatus.pago || saving}
+                            disabled={isLocked || saving}
                             value={currentPalpite.vencedor_penaltis || ""}
                             onChange={(e) =>
                               handlePalpiteChange(
@@ -964,42 +964,41 @@ export default function Dashboard() {
                             </p>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 hide-scrollbar">
-                            {lineupsCache[match.id].map(
-                              (playerName: string, idx: number) => {
-                                const goalsStr =
-                                  currentPalpite.jogadores_gols?.[playerName] ||
-                                  "";
-                                return (
-                                  <div
-                                    key={`art-${idx}`}
-                                    className="flex items-center justify-between bg-zinc-950 p-3 rounded-lg border border-zinc-800"
-                                  >
-                                    <span
-                                      className="text-xs text-zinc-300 font-medium truncate pr-3"
-                                      title={playerName}
-                                    >
-                                      {playerName}
-                                    </span>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      disabled={!userStatus.pago || saving}
-                                      value={goalsStr}
-                                      onChange={(e) =>
-                                        handlePlayerGoalChange(
-                                          match.id,
-                                          playerName,
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="w-16 bg-zinc-900 border border-zinc-700 rounded-md p-1.5 text-center text-sm text-emerald-400 font-bold focus:outline-none focus:border-emerald-500 transition-colors placeholder:text-zinc-700"
-                                      placeholder="Gols"
-                                    />
-                                  </div>
-                                );
-                              },
-                            )}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[350px] overflow-y-auto pr-2 hide-scrollbar">
+                            <div className="space-y-3">
+                               <h4 className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest mb-3 border-b border-zinc-800 pb-2 flex items-center gap-2">
+                                 {lineupsCache[match.id].homeTeam || match.time_casa}
+                               </h4>
+                               {lineupsCache[match.id].homePlayers?.map((playerName: string, idx: number) => {
+                                 const goalsStr = currentPalpite.jogadores_gols?.[playerName] || "";
+                                 return (
+                                   <div key={`home-${idx}`} className="flex items-center justify-between bg-zinc-950 p-2.5 rounded-lg border border-zinc-800">
+                                      <span className="text-[11px] text-zinc-300 font-medium truncate pr-2" title={playerName}>{playerName}</span>
+                                      <input type="number" min="0" disabled={isLocked || saving} value={goalsStr} onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)} className="w-14 bg-zinc-900 border border-zinc-800 rounded p-1 text-center text-[11px] text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-zinc-700" placeholder="Gols" />
+                                   </div>
+                                 );
+                               })}
+                               {(!lineupsCache[match.id].homePlayers || lineupsCache[match.id].homePlayers.length === 0) && (
+                                 <p className="text-xs text-zinc-500 text-center py-4">Nenhum jogador encontrado</p>
+                               )}
+                            </div>
+                            <div className="space-y-3">
+                               <h4 className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest mb-3 border-b border-zinc-800 pb-2 flex items-center gap-2">
+                                 {lineupsCache[match.id].awayTeam || match.time_visitante}
+                               </h4>
+                               {lineupsCache[match.id].awayPlayers?.map((playerName: string, idx: number) => {
+                                 const goalsStr = currentPalpite.jogadores_gols?.[playerName] || "";
+                                 return (
+                                   <div key={`away-${idx}`} className="flex items-center justify-between bg-zinc-950 p-2.5 rounded-lg border border-zinc-800">
+                                      <span className="text-[11px] text-zinc-300 font-medium truncate pr-2" title={playerName}>{playerName}</span>
+                                      <input type="number" min="0" disabled={isLocked || saving} value={goalsStr} onChange={(e) => handlePlayerGoalChange(match.id, playerName, e.target.value)} className="w-14 bg-zinc-900 border border-zinc-800 rounded p-1 text-center text-[11px] text-emerald-400 font-bold focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-zinc-700" placeholder="Gols" />
+                                   </div>
+                                 );
+                               })}
+                               {(!lineupsCache[match.id].awayPlayers || lineupsCache[match.id].awayPlayers.length === 0) && (
+                                 <p className="text-xs text-zinc-500 text-center py-4">Nenhum jogador encontrado</p>
+                               )}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1009,7 +1008,7 @@ export default function Dashboard() {
                     <button
                       onClick={() => savePalpite(match.id)}
                       disabled={
-                        !userStatus.pago || saving ||
+                        isLocked || saving ||
                         currentPalpite.home === "" ||
                         currentPalpite.away === ""
                       }
