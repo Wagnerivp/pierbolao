@@ -8,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || "3dd5119643msh5fd4694fc97b882p17f897jsnd406196f787f";
+    const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || "da55d90e6fmsh9c98df101001573p162a11jsnc6d3574fdcbb";
     const date = new Date().toISOString().split('T')[0];
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;

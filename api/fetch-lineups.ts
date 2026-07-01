@@ -12,7 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ success: false, error: "match_id required" });
     }
     
-    const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || "3dd5119643msh5fd4694fc97b882p17f897jsnd406196f787f";
+    const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || "da55d90e6fmsh9c98df101001573p162a11jsnc6d3574fdcbb";
     
     const options = {
       method: 'GET',
