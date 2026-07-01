@@ -15,7 +15,19 @@ CREATE TABLE public.usuarios (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Tabela de Palpites
+-- 2. Tabela de Partidas (Copa do Mundo)
+CREATE TABLE public.partidas (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    sofascore_match_id INTEGER NOT NULL UNIQUE,
+    time_casa TEXT NOT NULL,
+    time_visitante TEXT NOT NULL,
+    horario_inicio TIMESTAMPTZ NOT NULL,
+    status TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Tabela de Palpites
 CREATE TABLE public.palpites (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES public.usuarios(id) ON DELETE CASCADE,
@@ -34,8 +46,10 @@ CREATE TABLE public.palpites (
 -- em vez do Supabase Auth nativo, precisamos liberar as políticas de leitura/escrita.
 
 ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.partidas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.palpites ENABLE ROW LEVEL SECURITY;
 
 -- Políticas Abertas (Necessário para a autenticação customizada funcionar)
 CREATE POLICY "Acesso total aos usuários" ON public.usuarios FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acesso total as partidas" ON public.partidas FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Acesso total aos palpites" ON public.palpites FOR ALL USING (true) WITH CHECK (true);

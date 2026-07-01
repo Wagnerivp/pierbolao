@@ -89,14 +89,14 @@ async function startServer() {
       
       const mockMatches = [
         {
-          sofascore_match_id: `mock-${Date.now()}-1`,
+          sofascore_match_id: Math.floor(Date.now() / 1000),
           time_casa: "Brasil",
           time_visitante: "Argentina",
           horario_inicio: new Date(Date.now() + 3600000).toISOString(),
           status: "Not started"
         },
         {
-          sofascore_match_id: `mock-${Date.now()}-2`,
+          sofascore_match_id: Math.floor(Date.now() / 1000) + 1,
           time_casa: "França",
           time_visitante: "Inglaterra",
           horario_inicio: new Date(Date.now() + 7200000).toISOString(),
