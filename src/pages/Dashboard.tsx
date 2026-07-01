@@ -37,7 +37,8 @@ export default function Dashboard() {
   const fetchMatches = async () => {
     try {
       if (!isSupabaseConfigured()) {
-        setMatches([]);
+        applyFallbackMatches();
+        setLoading(false);
         return;
       }
       
@@ -47,7 +48,10 @@ export default function Dashboard() {
         .order('horario_inicio', { ascending: true });
         
       if (error) {
-        throw error;
+        console.warn("Supabase fetch error, using fallback matches:", error);
+        applyFallbackMatches();
+        setLoading(false);
+        return;
       }
       
       const formattedMatches = (data || []).map(p => ({
@@ -58,33 +62,57 @@ export default function Dashboard() {
         status: { description: p.status || "Not started" }
       }));
       
-      setMatches(formattedMatches);
-
-      const fetchLineupsSequentially = async () => {
-        for (const m of formattedMatches) {
-          try {
-            const res = await fetch(`/api/fetch-lineups?match_id=${m.id}`);
-            if (res.ok) {
-              const data = await res.json();
-              if (data.success && data.players && data.players.length > 0) {
-                setLineupsCache((prev) => ({ ...prev, [m.id]: data.players }));
-              }
-            }
-          } catch (e) {
-            console.error("Lineup error:", e);
-          }
-        }
-      };
-      
-      if (formattedMatches.length > 0) {
-        fetchLineupsSequentially();
+      if (formattedMatches.length === 0) {
+        applyFallbackMatches();
+      } else {
+        setMatches(formattedMatches);
+        fetchLineupsSequentially(formattedMatches);
       }
 
     } catch (error: any) {
       console.error("Erro ao buscar partidas:", error);
-      toast.error(`Erro ao carregar jogos: ${error?.message || "Falha de conexão"}`);
+      toast.error(`Erro ao carregar jogos: ${error?.message || "Falha de conexão"}. Usando mock...`);
+      applyFallbackMatches();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const applyFallbackMatches = () => {
+    const today = new Date();
+    const fallback = [
+      {
+        id: 1001,
+        homeTeam: { name: "Inglaterra", nameCode: "ING" },
+        awayTeam: { name: "RD Congo", nameCode: "RDC" },
+        startTimestamp: Math.floor(new Date(today.getFullYear(), today.getMonth(), today.getDate(), 20, 0, 0).getTime() / 1000),
+        status: { description: "Not started" }
+      },
+      {
+        id: 1002,
+        homeTeam: { name: "Bélgica", nameCode: "BEL" },
+        awayTeam: { name: "Senegal", nameCode: "SEN" },
+        startTimestamp: Math.floor(new Date(today.getFullYear(), today.getMonth(), today.getDate(), 22, 0, 0).getTime() / 1000),
+        status: { description: "Not started" }
+      }
+    ];
+    setMatches(fallback);
+    fetchLineupsSequentially(fallback);
+  };
+
+  const fetchLineupsSequentially = async (matchList: any[]) => {
+    for (const m of matchList) {
+      try {
+        const res = await fetch(`/api/fetch-lineups?match_id=${m.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.players && data.players.length > 0) {
+            setLineupsCache((prev) => ({ ...prev, [m.id]: data.players }));
+          }
+        }
+      } catch (e) {
+        console.error("Lineup error:", e);
+      }
     }
   };
 
@@ -138,6 +166,16 @@ export default function Dashboard() {
 
   const savePalpite = async (matchId: number) => {
     if (!user) return;
+
+    const match = matches.find(m => m.id === matchId);
+    if (match) {
+      const matchDate = new Date(match.startTimestamp * 1000);
+      const deadline = new Date(matchDate.getTime() - 60000);
+      const now = new Date();
+      if (now > deadline || match.status.description.toLowerCase() === "ended" || match.status.description.toLowerCase() === "finalizado") {
+        return toast.error("Tempo esgotado para salvar palpites nesta partida.");
+      }
+    }
 
     const palpite = palpites[matchId];
     if (
@@ -231,7 +269,9 @@ export default function Dashboard() {
       <div className="space-y-4">
         {matches.map((match) => {
           const matchDate = new Date(match.startTimestamp * 1000);
-          const hasStarted = match.status.description !== "Not started";
+          const deadline = new Date(matchDate.getTime() - 60000);
+          const now = new Date();
+          const isLocked = now > deadline || match.status.description.toLowerCase() === "ended" || match.status.description.toLowerCase() === "finalizado";
           const currentPalpite = palpites[match.id] || { home: "", away: "" };
           const isSaved = savedStatus[match.id];
 
@@ -247,9 +287,9 @@ export default function Dashboard() {
                   })}
                 </span>
                 <span
-                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${hasStarted ? "bg-red-500/10 text-red-500 border border-red-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`}
+                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${isLocked ? "bg-red-500/10 text-red-500 border border-red-500/20" : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"}`}
                 >
-                  {hasStarted ? "Em Andamento" : "Aberto"}
+                  {isLocked ? "Bloqueado" : "Aberto"}
                 </span>
               </div>
 
@@ -269,7 +309,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2 shrink-0">
                   <input
                     type="number"
-                    disabled={hasStarted || saving}
+                    disabled={isLocked || saving}
                     value={currentPalpite.home}
                     placeholder="0"
                     onChange={(e) =>
@@ -280,7 +320,7 @@ export default function Dashboard() {
                   <span className="text-zinc-600 font-bold font-mono tracking-widest">:</span>
                   <input
                     type="number"
-                    disabled={hasStarted || saving}
+                    disabled={isLocked || saving}
                     value={currentPalpite.away}
                     placeholder="0"
                     onChange={(e) =>
@@ -302,14 +342,14 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {!hasStarted && (
+              {!isLocked && (
                 <div className="px-6 py-3 border-t border-zinc-800/50 bg-zinc-900/30 space-y-3">
                   <div>
                     <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
                       1º Autor do Gol (Extra)
                     </label>
                     <select
-                      disabled={hasStarted || saving || !lineupsCache[match.id]}
+                      disabled={isLocked || saving || !lineupsCache[match.id]}
                       value={currentPalpite.primeiro_gol_autor || ""}
                       onChange={(e) => handlePalpiteChange(match.id, "primeiro_gol_autor", e.target.value)}
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
@@ -329,7 +369,7 @@ export default function Dashboard() {
                       1º Cartão Vermelho (Extra)
                     </label>
                     <select
-                      disabled={hasStarted || saving || !lineupsCache[match.id]}
+                      disabled={isLocked || saving || !lineupsCache[match.id]}
                       value={currentPalpite.primeiro_cartao_vermelho || ""}
                       onChange={(e) => handlePalpiteChange(match.id, "primeiro_cartao_vermelho", e.target.value)}
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-zinc-300 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
@@ -347,7 +387,7 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {!hasStarted && (
+              {!isLocked && (
                 <div className="px-6 pb-6 pt-2">
                   <button
                     onClick={() => savePalpite(match.id)}
